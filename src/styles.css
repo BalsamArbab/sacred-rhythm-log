@@ -53,21 +53,22 @@
   --card-foreground: oklch(0.28 0.02 250);
   --popover: oklch(0.98 0.003 95);
   --popover-foreground: oklch(0.28 0.02 250);
-  --primary: oklch(0.5 0.11 165);
+  /* Celadon / sage green — deeper variant for accessible text contrast */
+  --primary: oklch(0.48 0.08 160);
   --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(0.92 0.01 95);
   --secondary-foreground: oklch(0.28 0.02 250);
   --muted: oklch(0.92 0.01 95);
-  --muted-foreground: oklch(0.5 0.02 250);
-  --accent: oklch(0.88 0.04 165);
+  --muted-foreground: oklch(0.45 0.02 250);
+  --accent: oklch(0.88 0.045 160);
   --accent-foreground: oklch(0.28 0.02 250);
   --destructive: oklch(0.6 0.2 25);
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.88 0.01 95);
   --input: oklch(0.88 0.01 95);
-  --ring: oklch(0.5 0.11 165);
-  --emerald: oklch(0.5 0.11 165);
-  --emerald-soft: oklch(0.85 0.06 165);
+  --ring: oklch(0.48 0.08 160);
+  --emerald: oklch(0.48 0.08 160);
+  --emerald-soft: oklch(0.86 0.05 160);
 
   /* Neumorphism dual shadows */
   --shadow-light: rgba(255, 255, 255, 0.9);
@@ -87,21 +88,21 @@
   --card-foreground: oklch(0.92 0.01 95);
   --popover: oklch(0.27 0.02 250);
   --popover-foreground: oklch(0.92 0.01 95);
-  --primary: oklch(0.72 0.13 165);
+  --primary: oklch(0.78 0.09 160);
   --primary-foreground: oklch(0.18 0.02 250);
   --secondary: oklch(0.3 0.02 250);
   --secondary-foreground: oklch(0.92 0.01 95);
   --muted: oklch(0.3 0.02 250);
-  --muted-foreground: oklch(0.7 0.02 95);
-  --accent: oklch(0.35 0.04 165);
+  --muted-foreground: oklch(0.72 0.02 95);
+  --accent: oklch(0.35 0.04 160);
   --accent-foreground: oklch(0.92 0.01 95);
   --destructive: oklch(0.65 0.2 25);
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.32 0.02 250);
   --input: oklch(0.32 0.02 250);
-  --ring: oklch(0.72 0.13 165);
-  --emerald: oklch(0.72 0.13 165);
-  --emerald-soft: oklch(0.4 0.06 165);
+  --ring: oklch(0.78 0.09 160);
+  --emerald: oklch(0.78 0.09 160);
+  --emerald-soft: oklch(0.4 0.06 160);
 
   --shadow-light: rgba(60, 70, 95, 0.55);
   --shadow-dark: rgba(10, 12, 20, 0.65);
