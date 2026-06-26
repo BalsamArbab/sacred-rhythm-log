@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Trash2, Plus, LogOut } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton, NeuInset } from "@/components/neu";
-import { fetchHabits, createHabit, archiveHabit } from "@/lib/habits";
+import { fetchHabits, createHabit, archiveHabit, fetchProfile, updateDailyGoal } from "@/lib/habits";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -16,6 +16,13 @@ function SettingsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const habitsQ = useQuery({ queryKey: ["habits"], queryFn: fetchHabits });
+  const profileQ = useQuery({ queryKey: ["profile"], queryFn: fetchProfile });
+  const goal = profileQ.data?.daily_goal_pct ?? 80;
+
+  const goalMut = useMutation({
+    mutationFn: updateDailyGoal,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
+  });
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
