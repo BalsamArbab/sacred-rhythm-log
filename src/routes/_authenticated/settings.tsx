@@ -80,7 +80,40 @@ function SettingsPage() {
         <h1 className="text-3xl font-semibold mt-1">Settings</h1>
       </header>
 
+      <section className="mb-8 space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Daily goal
+          </h2>
+          <span className="text-sm font-semibold text-[color:var(--emerald)] tabular-nums">
+            {goal}%
+          </span>
+        </div>
+        <NeuCard className="space-y-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Your daily goal is the share of habits you aim to complete each day.
+            The ring on Today fills as you progress toward this goal.
+          </p>
+          <input
+            type="range"
+            min={10}
+            max={100}
+            step={5}
+            value={goal}
+            onChange={(e) => goalMut.mutate(Number(e.target.value))}
+            aria-label="Daily completion goal percentage"
+            className="w-full accent-[color:var(--emerald)]"
+          />
+          <div className="flex justify-between text-[10px] uppercase tracking-widest text-muted-foreground">
+            <span>10%</span>
+            <span>55%</span>
+            <span>100%</span>
+          </div>
+        </NeuCard>
+      </section>
+
       <section className="space-y-4">
+
         <div className="flex items-center justify-between px-1">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Habits
