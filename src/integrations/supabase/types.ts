@@ -14,7 +14,133 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      habit_checklist_items: {
+        Row: {
+          habit_id: string
+          id: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          habit_id: string
+          id?: string
+          label: string
+          sort_order?: number
+        }
+        Update: {
+          habit_id?: string
+          id?: string
+          label?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_checklist_items_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      habit_logs: {
+        Row: {
+          completed_bool: boolean
+          completed_items: Json
+          habit_id: string
+          id: string
+          log_date: string
+          updated_at: string
+          user_id: string
+          value_num: number
+        }
+        Insert: {
+          completed_bool?: boolean
+          completed_items?: Json
+          habit_id: string
+          id?: string
+          log_date: string
+          updated_at?: string
+          user_id: string
+          value_num?: number
+        }
+        Update: {
+          completed_bool?: boolean
+          completed_items?: Json
+          habit_id?: string
+          id?: string
+          log_date?: string
+          updated_at?: string
+          user_id?: string
+          value_num?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_logs_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      habits: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          name: string
+          name_ar: string | null
+          sort_order: number
+          target: number | null
+          type: Database["public"]["Enums"]["habit_type"]
+          unit: string | null
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          name_ar?: string | null
+          sort_order?: number
+          target?: number | null
+          type?: Database["public"]["Enums"]["habit_type"]
+          unit?: string | null
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          name_ar?: string | null
+          sort_order?: number
+          target?: number | null
+          type?: Database["public"]["Enums"]["habit_type"]
+          unit?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +149,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      habit_type: "boolean" | "counter" | "checklist"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +276,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      habit_type: ["boolean", "counter", "checklist"],
+    },
   },
 } as const
