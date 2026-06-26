@@ -25,9 +25,11 @@ function TodayPage() {
     queryKey: ["logs", today],
     queryFn: () => fetchLogsForDate(today),
   });
+  const profileQ = useQuery({ queryKey: ["profile"], queryFn: fetchProfile });
 
   const habits = habitsQ.data ?? [];
   const logs = logsQ.data ?? [];
+  const goal = profileQ.data?.daily_goal_pct ?? 80;
 
   const dateLabel = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -45,6 +47,8 @@ function TodayPage() {
           }, 0) / habits.length,
         );
 
+  const goalProgress = Math.min(100, Math.round((overallPct / goal) * 100));
+
   return (
     <AppShell>
       <header className="mb-7">
@@ -54,7 +58,7 @@ function TodayPage() {
         <h1 className="text-3xl font-semibold mt-1">As-salāmu ʿalaykum</h1>
       </header>
 
-      <OverallRing pct={overallPct} count={habits.length} />
+      <OverallRing pct={overallPct} goal={goal} goalProgress={goalProgress} count={habits.length} />
 
       <div className="mt-8 space-y-4">
         {habitsQ.isLoading && (
@@ -71,10 +75,21 @@ function TodayPage() {
   );
 }
 
-function OverallRing({ pct, count }: { pct: number; count: number }) {
+function OverallRing({
+  pct,
+  goal,
+  goalProgress,
+  count,
+}: {
+  pct: number;
+  goal: number;
+  goalProgress: number;
+  count: number;
+}) {
   const r = 56;
   const c = 2 * Math.PI * r;
-  const dash = c * (pct / 100);
+  const dash = c * (goalProgress / 100);
+  const reached = pct >= goal;
   return (
     <NeuCard className="flex items-center gap-5">
       <div className="relative neu-pressed rounded-full p-3">
@@ -117,7 +132,9 @@ function OverallRing({ pct, count }: { pct: number; count: number }) {
           {count} {count === 1 ? "habit" : "habits"}
         </div>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          Small, consistent acts. May Allāh accept.
+          {reached
+            ? `Daily goal of ${goal}% reached. Alhamdulillāh.`
+            : `Goal ${goal}% · ${goalProgress}% of the way there.`}
         </p>
       </div>
     </NeuCard>
