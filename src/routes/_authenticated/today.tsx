@@ -6,6 +6,7 @@ import { NeuCard, NeuButton, NeuToggle } from "@/components/neu";
 import {
   fetchHabits,
   fetchLogsForDate,
+  fetchProfile,
   upsertLog,
   todayStr,
   habitCompletionPct,

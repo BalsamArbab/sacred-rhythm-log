@@ -1,6 +1,31 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
+export async function fetchProfile(): Promise<{ id: string; display_name: string | null; daily_goal_pct: number } | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, daily_goal_pct")
+    .eq("id", uid)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateDailyGoal(pct: number) {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Not authenticated");
+  const clamped = Math.max(1, Math.min(100, Math.round(pct)));
+  const { error } = await supabase
+    .from("profiles")
+    .update({ daily_goal_pct: clamped })
+    .eq("id", uid);
+  if (error) throw error;
+}
+
 export type HabitRow = {
   id: string;
   user_id: string;
