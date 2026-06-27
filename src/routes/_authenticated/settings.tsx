@@ -277,3 +277,36 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function ThemePicker() {
+  const { theme, setTheme } = useTheme();
+  const options: { value: Theme; label: string; Icon: typeof Sun }[] = [
+    { value: "system", label: "System", Icon: Monitor },
+    { value: "light", label: "Light", Icon: Sun },
+    { value: "dark", label: "Dark", Icon: Moon },
+  ];
+  return (
+    <NeuCard className="p-2">
+      <div className="neu-pressed-sm rounded-2xl p-1 flex">
+        {options.map(({ value, label, Icon }) => {
+          const active = theme === value;
+          return (
+            <button
+              key={value}
+              onClick={() => setTheme(value)}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                active
+                  ? "neu-raised-sm text-[color:var(--emerald)] font-semibold"
+                  : "text-muted-foreground"
+              }`}
+              aria-pressed={active}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </NeuCard>
+  );
+}
