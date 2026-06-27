@@ -52,11 +52,17 @@ export type HabitLog = {
   user_id: string;
   log_date: string;
   value_num: number;
-  completed_items: string[];
+  /** jsonb — either string[] (checklist) or Record<string, number> (adhkar progress) */
+  completed_items: unknown;
   completed_bool: boolean;
 };
 
 export type HabitWithItems = HabitRow & { checklist: ChecklistItem[] };
+
+export function getCompletedIds(log: HabitLog | undefined): string[] {
+  if (!log) return [];
+  return Array.isArray(log.completed_items) ? (log.completed_items as string[]) : [];
+}
 
 export function todayStr(d = new Date()): string {
   // local YYYY-MM-DD
@@ -92,9 +98,7 @@ export async function fetchLogsForDate(date: string): Promise<HabitLog[]> {
   if (error) throw error;
   return (data ?? []).map((r) => ({
     ...(r as unknown as HabitLog),
-    completed_items: Array.isArray((r as { completed_items: unknown }).completed_items)
-      ? ((r as { completed_items: string[] }).completed_items)
-      : [],
+    completed_items: (r as { completed_items: unknown }).completed_items ?? [],
   }));
 }
 
@@ -198,5 +202,5 @@ export function habitCompletionPct(habit: HabitWithItems, log: HabitLog | undefi
   }
   // checklist
   const total = habit.checklist.length || 1;
-  return Math.round((log.completed_items.length / total) * 100);
+  return Math.round((getCompletedIds(log).length / total) * 100);
 }

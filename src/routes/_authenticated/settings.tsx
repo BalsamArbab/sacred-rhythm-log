@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trash2, Plus, LogOut } from "lucide-react";
+import { Trash2, Plus, LogOut, Sun, Moon, Monitor } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton, NeuInset } from "@/components/neu";
 import { fetchHabits, createHabit, archiveHabit, fetchProfile, updateDailyGoal } from "@/lib/habits";
+import { useTheme, type Theme } from "@/components/theme-provider";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -81,6 +82,13 @@ function SettingsPage() {
       </header>
 
       <section className="mb-8 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground px-1">
+          Appearance
+        </h2>
+        <ThemePicker />
+      </section>
+
+      <section className="mb-8 space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Daily goal
@@ -91,8 +99,11 @@ function SettingsPage() {
         </div>
         <NeuCard className="space-y-3">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Your daily goal is the share of habits you aim to complete each day.
-            The ring on Today fills as you progress toward this goal.
+            How much of your daily routine counts as a "good day." The Today ring
+            fills up as you get closer to this threshold — at {goal}%, hitting{" "}
+            {goal}% of your combined habit work fills the ring completely. Set it
+            lower for a more forgiving target on busy days; set to 100% to require
+            everything.
           </p>
           <input
             type="range"
@@ -111,6 +122,7 @@ function SettingsPage() {
           </div>
         </NeuCard>
       </section>
+
 
       <section className="space-y-4">
 
@@ -263,5 +275,38 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="text-xs font-medium text-muted-foreground px-1">{label}</label>
       {children}
     </div>
+  );
+}
+
+function ThemePicker() {
+  const { theme, setTheme } = useTheme();
+  const options: { value: Theme; label: string; Icon: typeof Sun }[] = [
+    { value: "system", label: "System", Icon: Monitor },
+    { value: "light", label: "Light", Icon: Sun },
+    { value: "dark", label: "Dark", Icon: Moon },
+  ];
+  return (
+    <NeuCard className="p-2">
+      <div className="neu-pressed-sm rounded-2xl p-1 flex">
+        {options.map(({ value, label, Icon }) => {
+          const active = theme === value;
+          return (
+            <button
+              key={value}
+              onClick={() => setTheme(value)}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                active
+                  ? "neu-raised-sm text-[color:var(--emerald)] font-semibold"
+                  : "text-muted-foreground"
+              }`}
+              aria-pressed={active}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </NeuCard>
   );
 }

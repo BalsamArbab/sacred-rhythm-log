@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Minus, Check } from "lucide-react";
+import { useState } from "react";
+import { Plus, Minus, Check, BookOpen } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { NeuCard, NeuButton, NeuToggle } from "@/components/neu";
+import { NeuCard, NeuButton } from "@/components/neu";
+import { AdhkarReader } from "@/components/adhkar-reader";
+import { cn } from "@/lib/utils";
 import {
   fetchHabits,
   fetchLogsForDate,
@@ -10,6 +13,7 @@ import {
   upsertLog,
   todayStr,
   habitCompletionPct,
+  getCompletedIds,
   type HabitWithItems,
   type HabitLog,
 } from "@/lib/habits";
@@ -151,12 +155,14 @@ function HabitCard({
   date: string;
 }) {
   const qc = useQueryClient();
+  const [readerOpen, setReaderOpen] = useState(false);
   const mut = useMutation({
     mutationFn: upsertLog,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["logs", date] }),
   });
 
   const pct = habitCompletionPct(habit, log);
+  const isAdhkar = habit.type === "counter" && habit.unit === "adhkar";
 
   return (
     <NeuCard className="space-y-4">
@@ -170,9 +176,14 @@ function HabitCard({
               </span>
             )}
           </div>
-          {habit.type === "counter" && habit.target && (
+          {habit.type === "counter" && habit.target && !isAdhkar && (
             <p className="text-xs text-muted-foreground mt-0.5">
               Target: {habit.target} {habit.unit}
+            </p>
+          )}
+          {isAdhkar && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {log?.value_num ?? 0} of {habit.target ?? 0} completed
             </p>
           )}
         </div>
@@ -180,9 +191,10 @@ function HabitCard({
       </div>
 
       {habit.type === "boolean" && (
-        <NeuToggle
-          label={habit.name}
+        <PrayerFillButton
           checked={!!log?.completed_bool}
+          label={habit.name}
+          fullWidth
           onToggle={() =>
             mut.mutate({
               habit_id: habit.id,
@@ -190,19 +202,32 @@ function HabitCard({
               completed_bool: !log?.completed_bool,
             })
           }
-          className="h-16 w-full"
         >
-          {log?.completed_bool ? (
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              <Check className="h-5 w-5" /> Done
-            </span>
-          ) : (
-            <span className="text-sm">Mark complete</span>
-          )}
-        </NeuToggle>
+          {log?.completed_bool ? "Done" : "Mark complete"}
+        </PrayerFillButton>
       )}
 
-      {habit.type === "counter" && (
+      {isAdhkar && (
+        <>
+          <NeuButton
+            onClick={() => setReaderOpen(true)}
+            className="w-full"
+            variant="primary"
+          >
+            <BookOpen className="h-4 w-4 mr-2" />
+            Open adhkar
+          </NeuButton>
+          <AdhkarReader
+            habit={habit}
+            log={log}
+            date={date}
+            open={readerOpen}
+            onClose={() => setReaderOpen(false)}
+          />
+        </>
+      )}
+
+      {habit.type === "counter" && !isAdhkar && (
         <div className="flex items-center justify-between gap-3">
           <NeuButton
             size="icon"
@@ -244,18 +269,17 @@ function HabitCard({
       {habit.type === "checklist" && (
         <div className="grid grid-cols-5 gap-2">
           {habit.checklist.map((item) => {
-            const done = log?.completed_items.includes(item.id) ?? false;
+            const completedIds = getCompletedIds(log);
+            const done = completedIds.includes(item.id);
             return (
               <div key={item.id} className="flex flex-col items-center gap-1.5">
-                <NeuToggle
-                  label={item.label}
+                <PrayerFillButton
                   checked={done}
-                  className="h-12 w-12"
+                  label={item.label}
                   onToggle={() => {
-                    const current = log?.completed_items ?? [];
                     const next = done
-                      ? current.filter((id) => id !== item.id)
-                      : [...current, item.id];
+                      ? completedIds.filter((id) => id !== item.id)
+                      : [...completedIds, item.id];
                     mut.mutate({
                       habit_id: habit.id,
                       log_date: date,
@@ -263,9 +287,7 @@ function HabitCard({
                       completed_bool: next.length === habit.checklist.length,
                     });
                   }}
-                >
-                  {done && <Check className="h-4 w-4" />}
-                </NeuToggle>
+                />
                 <span className="text-[10px] text-muted-foreground">{item.label}</span>
               </div>
             );
@@ -273,5 +295,40 @@ function HabitCard({
         </div>
       )}
     </NeuCard>
+  );
+}
+
+/**
+ * Prayer-style button: fills with the accent color when checked
+ * (no checkmark icon), uses neumorphic raised state when unchecked.
+ */
+function PrayerFillButton({
+  checked,
+  label,
+  onToggle,
+  fullWidth = false,
+  children,
+}: {
+  checked: boolean;
+  label: string;
+  onToggle: () => void;
+  fullWidth?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-pressed={checked}
+      aria-label={label}
+      className={cn(
+        "rounded-2xl flex items-center justify-center transition-all duration-200 select-none active:scale-[0.97]",
+        fullWidth ? "h-16 w-full text-sm font-semibold" : "h-12 w-12",
+        checked
+          ? "bg-[color:var(--emerald)] text-primary-foreground neu-flat"
+          : "neu-raised-sm text-muted-foreground",
+      )}
+    >
+      {children ?? (checked ? <Check className="h-4 w-4 opacity-0" /> : null)}
+    </button>
   );
 }
