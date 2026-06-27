@@ -98,9 +98,7 @@ export async function fetchLogsForDate(date: string): Promise<HabitLog[]> {
   if (error) throw error;
   return (data ?? []).map((r) => ({
     ...(r as unknown as HabitLog),
-    completed_items: Array.isArray((r as { completed_items: unknown }).completed_items)
-      ? ((r as { completed_items: string[] }).completed_items)
-      : [],
+    completed_items: (r as { completed_items: unknown }).completed_items ?? [],
   }));
 }
 
