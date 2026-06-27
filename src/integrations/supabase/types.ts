@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      adhkar_items: {
+        Row: {
+          arabic: string
+          created_at: string
+          habit_id: string
+          id: string
+          repeat_count: number
+          sort_order: number
+          source: string | null
+          translation: string | null
+          transliteration: string | null
+          user_id: string
+        }
+        Insert: {
+          arabic: string
+          created_at?: string
+          habit_id: string
+          id?: string
+          repeat_count?: number
+          sort_order?: number
+          source?: string | null
+          translation?: string | null
+          transliteration?: string | null
+          user_id: string
+        }
+        Update: {
+          arabic?: string
+          created_at?: string
+          habit_id?: string
+          id?: string
+          repeat_count?: number
+          sort_order?: number
+          source?: string | null
+          translation?: string | null
+          transliteration?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adhkar_items_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habit_checklist_items: {
         Row: {
           habit_id: string
@@ -149,7 +196,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      seed_evening_adhkar: {
+        Args: { _habit_id: string; _user_id: string }
+        Returns: undefined
+      }
+      seed_morning_adhkar: {
+        Args: { _habit_id: string; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       habit_type: "boolean" | "counter" | "checklist"
