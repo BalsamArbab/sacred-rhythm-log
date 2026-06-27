@@ -52,11 +52,17 @@ export type HabitLog = {
   user_id: string;
   log_date: string;
   value_num: number;
-  completed_items: string[];
+  /** jsonb — either string[] (checklist) or Record<string, number> (adhkar progress) */
+  completed_items: unknown;
   completed_bool: boolean;
 };
 
 export type HabitWithItems = HabitRow & { checklist: ChecklistItem[] };
+
+export function getCompletedIds(log: HabitLog | undefined): string[] {
+  if (!log) return [];
+  return Array.isArray(log.completed_items) ? (log.completed_items as string[]) : [];
+}
 
 export function todayStr(d = new Date()): string {
   // local YYYY-MM-DD
