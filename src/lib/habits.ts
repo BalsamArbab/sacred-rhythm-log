@@ -202,5 +202,5 @@ export function habitCompletionPct(habit: HabitWithItems, log: HabitLog | undefi
   }
   // checklist
   const total = habit.checklist.length || 1;
-  return Math.round((log.completed_items.length / total) * 100);
+  return Math.round((getCompletedIds(log).length / total) * 100);
 }
