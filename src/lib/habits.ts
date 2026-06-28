@@ -26,6 +26,17 @@ export async function updateDailyGoal(pct: number) {
   if (error) throw error;
 }
 
+export type HabitCategory = "fard" | "sunnah";
+export type HabitSubcategory = "prayer" | "dhikr" | "quran" | "fasting" | "character";
+export type RecurrenceType = "daily" | "weekly" | "hijri_monthly" | "hijri_annual";
+export type MenstruationBehavior = "always_pause" | "never_pause" | "depends_on_madhab";
+
+export type RecurrenceData = {
+  weekdays?: number[]; // ISO weekday: Monday=1 ... Sunday=7
+  hijri_days?: number[];
+  hijri_month?: number;
+};
+
 export type HabitRow = {
   id: string;
   user_id: string;
@@ -37,6 +48,32 @@ export type HabitRow = {
   sort_order: number;
   archived_at: string | null;
   created_at: string;
+  template_id: string | null;
+  category: HabitCategory | null;
+  subcategory: HabitSubcategory | null;
+  recurrence_type: RecurrenceType;
+  recurrence_data: RecurrenceData;
+  menstruation_behavior: MenstruationBehavior | null;
+};
+
+export type HabitTemplate = {
+  id: string;
+  key: string;
+  name: string;
+  name_ar: string | null;
+  category: HabitCategory;
+  subcategory: HabitSubcategory;
+  type: "boolean" | "counter" | "checklist";
+  unit: string | null;
+  target: number | null;
+  recurrence_type: RecurrenceType;
+  recurrence_data: RecurrenceData;
+  menstruation_behavior: MenstruationBehavior;
+  description: string | null;
+  source_url: string | null;
+  sort_order: number;
+  is_default: boolean;
+  checklist_labels: string[];
 };
 
 export type ChecklistItem = {
@@ -190,6 +227,66 @@ export async function archiveHabit(id: string) {
     .update({ archived_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw error;
+}
+
+export async function fetchHabitTemplates(): Promise<HabitTemplate[]> {
+  const { data, error } = await supabase
+    .from("habit_templates")
+    .select("*")
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []).map((t) => ({
+    ...t,
+    recurrence_data: (t.recurrence_data ?? {}) as RecurrenceData,
+    checklist_labels: (t.checklist_labels ?? []) as unknown as string[],
+  })) as HabitTemplate[];
+}
+
+/** Adds a habit to the current user's list from a catalog template. */
+export async function addHabitFromTemplate(template: HabitTemplate) {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Not authenticated");
+
+  const { data: maxRow } = await supabase
+    .from("habits")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextSort = (maxRow?.sort_order ?? -1) + 1;
+
+  const { data: habit, error } = await supabase
+    .from("habits")
+    .insert({
+      user_id: uid,
+      template_id: template.id,
+      name: template.name,
+      name_ar: template.name_ar,
+      type: template.type,
+      unit: template.unit,
+      target: template.target,
+      category: template.category,
+      subcategory: template.subcategory,
+      recurrence_type: template.recurrence_type,
+      recurrence_data: template.recurrence_data as unknown as Database["public"]["Tables"]["habits"]["Insert"]["recurrence_data"],
+      menstruation_behavior: template.menstruation_behavior,
+      sort_order: nextSort,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+
+  if (template.type === "checklist" && template.checklist_labels.length) {
+    const items = template.checklist_labels.map((label, i) => ({
+      habit_id: habit.id,
+      label,
+      sort_order: i,
+    }));
+    const { error: e2 } = await supabase.from("habit_checklist_items").insert(items);
+    if (e2) throw e2;
+  }
+  return habit;
 }
 
 export function habitCompletionPct(habit: HabitWithItems, log: HabitLog | undefined): number {
