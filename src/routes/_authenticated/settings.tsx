@@ -4,7 +4,17 @@ import { useState } from "react";
 import { Trash2, Plus, LogOut, Sun, Moon, Monitor } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton, NeuInset } from "@/components/neu";
-import { fetchHabits, createHabit, archiveHabit, fetchProfile, updateDailyGoal } from "@/lib/habits";
+import { Switch } from "@/components/ui/switch";
+import {
+  fetchHabits,
+  createHabit,
+  archiveHabit,
+  fetchProfile,
+  updateDailyGoal,
+  fetchHabitTemplates,
+  addHabitFromTemplate,
+  type HabitSubcategory,
+} from "@/lib/habits";
 import { useTheme, type Theme } from "@/components/theme-provider";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -123,6 +133,10 @@ function SettingsPage() {
         </NeuCard>
       </section>
 
+
+      <section className="mb-8">
+        <HabitCatalog />
+      </section>
 
       <section className="space-y-4">
 
@@ -266,6 +280,104 @@ function SettingsPage() {
         </NeuButton>
       </section>
     </AppShell>
+  );
+}
+
+const SUBCATEGORY_LABELS: Record<HabitSubcategory, string> = {
+  prayer: "Prayer",
+  dhikr: "Dhikr",
+  quran: "Qur'an",
+  fasting: "Fasting",
+  character: "Character & Daily Life",
+};
+const SUBCATEGORY_ORDER: HabitSubcategory[] = ["prayer", "dhikr", "quran", "fasting", "character"];
+
+function HabitCatalog() {
+  const qc = useQueryClient();
+  const templatesQ = useQuery({ queryKey: ["habit-templates"], queryFn: fetchHabitTemplates });
+  const habitsQ = useQuery({ queryKey: ["habits"], queryFn: fetchHabits });
+
+  const activeByTemplate = new Map(
+    (habitsQ.data ?? [])
+      .filter((h) => h.template_id)
+      .map((h) => [h.template_id as string, h.id]),
+  );
+
+  const addMut = useMutation({
+    mutationFn: addHabitFromTemplate,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["habits"] });
+      toast.success("Added to your habits");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
+  });
+  const removeMut = useMutation({
+    mutationFn: archiveHabit,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["habits"] });
+      toast.success("Removed");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to remove"),
+  });
+
+  if (templatesQ.isLoading) {
+    return (
+      <NeuCard className="text-center text-sm text-muted-foreground">
+        Loading the Sunnah catalog…
+      </NeuCard>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground px-1">
+        Sunnah catalog
+      </h2>
+      {SUBCATEGORY_ORDER.map((key) => {
+        const items = (templatesQ.data ?? []).filter((t) => t.subcategory === key);
+        if (!items.length) return null;
+        return (
+          <div key={key} className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground px-1">
+              {SUBCATEGORY_LABELS[key]}
+            </h3>
+            <NeuCard className="p-0 divide-y divide-border/50">
+              {items.map((t) => {
+                const activeHabitId = activeByTemplate.get(t.id);
+                const checked = !!activeHabitId;
+                return (
+                  <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-4">
+                    <div className="min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-medium text-sm">{t.name}</span>
+                        {t.name_ar && (
+                          <span className="font-arabic text-sm text-[color:var(--emerald)]">
+                            {t.name_ar}
+                          </span>
+                        )}
+                      </div>
+                      {t.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {t.description}
+                        </p>
+                      )}
+                    </div>
+                    <Switch
+                      checked={checked}
+                      disabled={addMut.isPending || removeMut.isPending}
+                      onCheckedChange={(next) => {
+                        if (next) addMut.mutate(t);
+                        else if (activeHabitId) removeMut.mutate(activeHabitId);
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </NeuCard>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
