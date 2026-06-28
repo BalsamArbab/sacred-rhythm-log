@@ -17,6 +17,7 @@ import {
   type HabitWithItems,
   type HabitLog,
 } from "@/lib/habits";
+import { isHabitDueOn } from "@/lib/recurrence";
 
 export const Route = createFileRoute("/_authenticated/today")({
   component: TodayPage,
@@ -31,7 +32,9 @@ function TodayPage() {
   });
   const profileQ = useQuery({ queryKey: ["profile"], queryFn: fetchProfile });
 
-  const habits = habitsQ.data ?? [];
+  const habits = (habitsQ.data ?? []).filter((h) =>
+    isHabitDueOn(h.recurrence_type ?? "daily", h.recurrence_data, new Date()),
+  );
   const logs = logsQ.data ?? [];
   const goal = profileQ.data?.daily_goal_pct ?? 80;
 
