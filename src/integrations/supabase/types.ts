@@ -131,41 +131,163 @@ export type Database = {
           },
         ]
       }
+      habit_templates: {
+        Row: {
+          category: Database["public"]["Enums"]["habit_category"]
+          checklist_labels: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          key: string
+          menstruation_behavior: Database["public"]["Enums"]["menstruation_behavior"]
+          name: string
+          name_ar: string | null
+          recurrence_data: Json
+          recurrence_type: Database["public"]["Enums"]["recurrence_type"]
+          sort_order: number
+          source_url: string | null
+          subcategory: Database["public"]["Enums"]["habit_subcategory"]
+          target: number | null
+          type: Database["public"]["Enums"]["habit_type"]
+          unit: string | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["habit_category"]
+          checklist_labels?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          key: string
+          menstruation_behavior?: Database["public"]["Enums"]["menstruation_behavior"]
+          name: string
+          name_ar?: string | null
+          recurrence_data?: Json
+          recurrence_type?: Database["public"]["Enums"]["recurrence_type"]
+          sort_order?: number
+          source_url?: string | null
+          subcategory: Database["public"]["Enums"]["habit_subcategory"]
+          target?: number | null
+          type: Database["public"]["Enums"]["habit_type"]
+          unit?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["habit_category"]
+          checklist_labels?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          key?: string
+          menstruation_behavior?: Database["public"]["Enums"]["menstruation_behavior"]
+          name?: string
+          name_ar?: string | null
+          recurrence_data?: Json
+          recurrence_type?: Database["public"]["Enums"]["recurrence_type"]
+          sort_order?: number
+          source_url?: string | null
+          subcategory?: Database["public"]["Enums"]["habit_subcategory"]
+          target?: number | null
+          type?: Database["public"]["Enums"]["habit_type"]
+          unit?: string | null
+        }
+        Relationships: []
+      }
       habits: {
         Row: {
           archived_at: string | null
+          category: Database["public"]["Enums"]["habit_category"] | null
           created_at: string
           id: string
+          menstruation_behavior:
+            | Database["public"]["Enums"]["menstruation_behavior"]
+            | null
           name: string
           name_ar: string | null
+          recurrence_data: Json
+          recurrence_type: Database["public"]["Enums"]["recurrence_type"]
           sort_order: number
+          subcategory: Database["public"]["Enums"]["habit_subcategory"] | null
           target: number | null
+          template_id: string | null
           type: Database["public"]["Enums"]["habit_type"]
           unit: string | null
           user_id: string
         }
         Insert: {
           archived_at?: string | null
+          category?: Database["public"]["Enums"]["habit_category"] | null
           created_at?: string
           id?: string
+          menstruation_behavior?:
+            | Database["public"]["Enums"]["menstruation_behavior"]
+            | null
           name: string
           name_ar?: string | null
+          recurrence_data?: Json
+          recurrence_type?: Database["public"]["Enums"]["recurrence_type"]
           sort_order?: number
+          subcategory?: Database["public"]["Enums"]["habit_subcategory"] | null
           target?: number | null
+          template_id?: string | null
           type?: Database["public"]["Enums"]["habit_type"]
           unit?: string | null
           user_id: string
         }
         Update: {
           archived_at?: string | null
+          category?: Database["public"]["Enums"]["habit_category"] | null
           created_at?: string
           id?: string
+          menstruation_behavior?:
+            | Database["public"]["Enums"]["menstruation_behavior"]
+            | null
           name?: string
           name_ar?: string | null
+          recurrence_data?: Json
+          recurrence_type?: Database["public"]["Enums"]["recurrence_type"]
           sort_order?: number
+          subcategory?: Database["public"]["Enums"]["habit_subcategory"] | null
           target?: number | null
+          template_id?: string | null
           type?: Database["public"]["Enums"]["habit_type"]
           unit?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habits_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "habit_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menstrual_cycle_logs: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          start_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          start_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          start_date?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -176,18 +298,24 @@ export type Database = {
           daily_goal_pct: number
           display_name: string | null
           id: string
+          madhab: string | null
+          tracks_menstruation: boolean
         }
         Insert: {
           created_at?: string
           daily_goal_pct?: number
           display_name?: string | null
           id: string
+          madhab?: string | null
+          tracks_menstruation?: boolean
         }
         Update: {
           created_at?: string
           daily_goal_pct?: number
           display_name?: string | null
           id?: string
+          madhab?: string | null
+          tracks_menstruation?: boolean
         }
         Relationships: []
       }
@@ -206,7 +334,14 @@ export type Database = {
       }
     }
     Enums: {
+      habit_category: "fard" | "sunnah"
+      habit_subcategory: "prayer" | "dhikr" | "quran" | "fasting" | "character"
       habit_type: "boolean" | "counter" | "checklist"
+      menstruation_behavior:
+        | "always_pause"
+        | "never_pause"
+        | "depends_on_madhab"
+      recurrence_type: "daily" | "weekly" | "hijri_monthly" | "hijri_annual"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -334,7 +469,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      habit_category: ["fard", "sunnah"],
+      habit_subcategory: ["prayer", "dhikr", "quran", "fasting", "character"],
       habit_type: ["boolean", "counter", "checklist"],
+      menstruation_behavior: [
+        "always_pause",
+        "never_pause",
+        "depends_on_madhab",
+      ],
+      recurrence_type: ["daily", "weekly", "hijri_monthly", "hijri_annual"],
     },
   },
 } as const
