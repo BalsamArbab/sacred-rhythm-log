@@ -138,6 +138,5 @@
   box-shadow: inset -2px -2px 5px var(--shadow-light), inset 2px 2px 5px var(--shadow-dark);
 }
 @utility neu-flat {
-  background: var(--color-background);
   box-shadow: -2px -2px 5px var(--shadow-light), 2px 2px 5px var(--shadow-dark);
 }
