@@ -5,6 +5,8 @@ import { Plus, Minus, Check, BookOpen } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton } from "@/components/neu";
 import { AdhkarReader } from "@/components/adhkar-reader";
+import { QuranReader } from "@/components/quran-reader";
+import { isQuranHabit } from "@/lib/quran";
 import { cn } from "@/lib/utils";
 import {
   fetchHabits,
@@ -159,6 +161,7 @@ function HabitCard({
 }) {
   const qc = useQueryClient();
   const [readerOpen, setReaderOpen] = useState(false);
+  const [quranOpen, setQuranOpen] = useState(false);
   const mut = useMutation({
     mutationFn: upsertLog,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["logs", date] }),
@@ -166,6 +169,8 @@ function HabitCard({
 
   const pct = habitCompletionPct(habit, log);
   const isAdhkar = habit.type === "counter" && habit.unit === "adhkar";
+  const isQuran = isQuranHabit(habit);
+
 
   return (
     <NeuCard className="space-y-4">
@@ -230,7 +235,63 @@ function HabitCard({
         </>
       )}
 
-      {habit.type === "counter" && !isAdhkar && (
+      {isQuran && (
+        <>
+          <NeuButton
+            onClick={() => setQuranOpen(true)}
+            className="w-full"
+            variant="primary"
+          >
+            <BookOpen className="h-4 w-4 mr-2" />
+            Open Qur'ān reader
+          </NeuButton>
+          <div className="flex items-center justify-between gap-3">
+            <NeuButton
+              size="icon"
+              onClick={() =>
+                mut.mutate({
+                  habit_id: habit.id,
+                  log_date: date,
+                  value_num: Math.max(0, (log?.value_num ?? 0) - 1),
+                  completed_bool: Math.max(0, (log?.value_num ?? 0) - 1) >= (habit.target ?? 1),
+                })
+              }
+            >
+              <Minus className="h-5 w-5" />
+            </NeuButton>
+            <div className="neu-pressed rounded-2xl flex-1 py-3 text-center">
+              <div className="text-2xl font-semibold tabular-nums">
+                {log?.value_num ?? 0}
+              </div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+                {habit.unit ?? "count"}
+              </div>
+            </div>
+            <NeuButton
+              size="icon"
+              onClick={() =>
+                mut.mutate({
+                  habit_id: habit.id,
+                  log_date: date,
+                  value_num: (log?.value_num ?? 0) + 1,
+                  completed_bool: (log?.value_num ?? 0) + 1 >= (habit.target ?? 1),
+                })
+              }
+            >
+              <Plus className="h-5 w-5" />
+            </NeuButton>
+          </div>
+          <QuranReader
+            habit={habit}
+            log={log}
+            date={date}
+            open={quranOpen}
+            onClose={() => setQuranOpen(false)}
+          />
+        </>
+      )}
+
+      {habit.type === "counter" && !isAdhkar && !isQuran && (
         <div className="flex items-center justify-between gap-3">
           <NeuButton
             size="icon"
