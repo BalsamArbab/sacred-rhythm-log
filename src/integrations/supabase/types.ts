@@ -205,6 +205,9 @@ export type Database = {
             | null
           name: string
           name_ar: string | null
+          quran_tracking_mode:
+            | Database["public"]["Enums"]["quran_tracking_mode"]
+            | null
           recurrence_data: Json
           recurrence_type: Database["public"]["Enums"]["recurrence_type"]
           sort_order: number
@@ -225,6 +228,9 @@ export type Database = {
             | null
           name: string
           name_ar?: string | null
+          quran_tracking_mode?:
+            | Database["public"]["Enums"]["quran_tracking_mode"]
+            | null
           recurrence_data?: Json
           recurrence_type?: Database["public"]["Enums"]["recurrence_type"]
           sort_order?: number
@@ -245,6 +251,9 @@ export type Database = {
             | null
           name?: string
           name_ar?: string | null
+          quran_tracking_mode?:
+            | Database["public"]["Enums"]["quran_tracking_mode"]
+            | null
           recurrence_data?: Json
           recurrence_type?: Database["public"]["Enums"]["recurrence_type"]
           sort_order?: number
@@ -319,6 +328,50 @@ export type Database = {
         }
         Relationships: []
       }
+      quran_reading_state: {
+        Row: {
+          ayah: number
+          created_at: string
+          habit_id: string
+          id: string
+          show_translation: boolean
+          surah: number
+          updated_at: string
+          user_id: string
+          view_mode: string
+        }
+        Insert: {
+          ayah?: number
+          created_at?: string
+          habit_id: string
+          id?: string
+          show_translation?: boolean
+          surah?: number
+          updated_at?: string
+          user_id: string
+          view_mode?: string
+        }
+        Update: {
+          ayah?: number
+          created_at?: string
+          habit_id?: string
+          id?: string
+          show_translation?: boolean
+          surah?: number
+          updated_at?: string
+          user_id?: string
+          view_mode?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_reading_state_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -341,6 +394,7 @@ export type Database = {
         | "always_pause"
         | "never_pause"
         | "depends_on_madhab"
+      quran_tracking_mode: "pages" | "verses" | "minutes"
       recurrence_type: "daily" | "weekly" | "hijri_monthly" | "hijri_annual"
     }
     CompositeTypes: {
@@ -477,6 +531,7 @@ export const Constants = {
         "never_pause",
         "depends_on_madhab",
       ],
+      quran_tracking_mode: ["pages", "verses", "minutes"],
       recurrence_type: ["daily", "weekly", "hijri_monthly", "hijri_annual"],
     },
   },
