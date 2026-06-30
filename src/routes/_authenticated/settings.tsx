@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trash2, Plus, LogOut, Sun, Moon, Monitor, Pencil, X } from "lucide-react";
+import { Plus, LogOut, Sun, Moon, Monitor, Pencil, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton, NeuInset } from "@/components/neu";
 import { Switch } from "@/components/ui/switch";
@@ -365,22 +365,21 @@ function SettingsPage() {
                         {h.type === "checklist" ? ` · ${h.checklist.length} items` : ""}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
                       <NeuButton size="icon" onClick={() => startEdit(h)} aria-label={`Edit ${h.name}`}>
                         <Pencil className="h-4 w-4" />
                       </NeuButton>
-                      <NeuButton
-                        size="icon"
-                        onClick={() => {
-                          if (confirm(`Remove "${h.name}"? Your past logs are kept.`)) {
+                      <Switch
+                        checked={true}
+                        onCheckedChange={() => {
+                          if (confirm(`Turn off "${h.name}"? Your past logs are kept.`)) {
                             archive.mutate(h.id);
                           }
                         }}
-                        aria-label={`Remove ${h.name}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </NeuButton>
+                        aria-label={`Disable ${h.name}`}
+                      />
                     </div>
+
                   </NeuCard>
                 );
               }
