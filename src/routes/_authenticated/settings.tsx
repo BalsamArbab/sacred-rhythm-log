@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trash2, Plus, LogOut, Sun, Moon, Monitor, Pencil, X } from "lucide-react";
+import { Plus, LogOut, Sun, Moon, Monitor, Pencil, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton, NeuInset } from "@/components/neu";
 import { Switch } from "@/components/ui/switch";
