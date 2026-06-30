@@ -365,22 +365,21 @@ function SettingsPage() {
                         {h.type === "checklist" ? ` · ${h.checklist.length} items` : ""}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
                       <NeuButton size="icon" onClick={() => startEdit(h)} aria-label={`Edit ${h.name}`}>
                         <Pencil className="h-4 w-4" />
                       </NeuButton>
-                      <NeuButton
-                        size="icon"
-                        onClick={() => {
-                          if (confirm(`Remove "${h.name}"? Your past logs are kept.`)) {
+                      <Switch
+                        checked={true}
+                        onCheckedChange={() => {
+                          if (confirm(`Turn off "${h.name}"? Your past logs are kept.`)) {
                             archive.mutate(h.id);
                           }
                         }}
-                        aria-label={`Remove ${h.name}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </NeuButton>
+                        aria-label={`Disable ${h.name}`}
+                      />
                     </div>
+
                   </NeuCard>
                 );
               }
