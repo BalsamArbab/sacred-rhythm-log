@@ -229,6 +229,43 @@ export async function archiveHabit(id: string) {
   if (error) throw error;
 }
 
+export async function updateHabit(input: {
+  id: string;
+  name: string;
+  name_ar?: string;
+  unit?: string;
+  target?: number;
+  checklist_labels?: string[];
+}) {
+  const { error } = await supabase
+    .from("habits")
+    .update({
+      name: input.name,
+      name_ar: input.name_ar || null,
+      unit: input.unit || null,
+      target: input.target ?? null,
+    })
+    .eq("id", input.id);
+  if (error) throw error;
+
+  if (input.checklist_labels) {
+    const { error: delErr } = await supabase
+      .from("habit_checklist_items")
+      .delete()
+      .eq("habit_id", input.id);
+    if (delErr) throw delErr;
+    if (input.checklist_labels.length) {
+      const items = input.checklist_labels.map((label, i) => ({
+        habit_id: input.id,
+        label,
+        sort_order: i,
+      }));
+      const { error: insErr } = await supabase.from("habit_checklist_items").insert(items);
+      if (insErr) throw insErr;
+    }
+  }
+}
+
 export async function fetchHabitTemplates(): Promise<HabitTemplate[]> {
   const { data, error } = await supabase
     .from("habit_templates")
