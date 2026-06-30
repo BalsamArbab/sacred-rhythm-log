@@ -14,8 +14,8 @@ import {
   updateDailyGoal,
   fetchHabitTemplates,
   addHabitFromTemplate,
-  type HabitSubcategory,
   type HabitWithItems,
+  type HabitTemplate,
 } from "@/lib/habits";
 import { useTheme, type Theme } from "@/components/theme-provider";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,8 +29,18 @@ function SettingsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const habitsQ = useQuery({ queryKey: ["habits"], queryFn: fetchHabits });
+  const templatesQ = useQuery({ queryKey: ["habit-templates"], queryFn: fetchHabitTemplates });
   const profileQ = useQuery({ queryKey: ["profile"], queryFn: fetchProfile });
   const goal = profileQ.data?.daily_goal_pct ?? 80;
+
+  const addFromTemplate = useMutation({
+    mutationFn: addHabitFromTemplate,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["habits"] });
+      toast.success("Added to your habits");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
+  });
 
   const goalMut = useMutation({
     mutationFn: updateDailyGoal,
@@ -185,10 +195,6 @@ function SettingsPage() {
       </section>
 
 
-      <section className="mb-8">
-        <HabitCatalog />
-      </section>
-
       <section className="space-y-4">
 
         <div className="flex items-center justify-between px-1">
@@ -315,41 +321,97 @@ function SettingsPage() {
         )}
 
         <div className="space-y-3">
-          {(habitsQ.data ?? []).map((h) => (
-            <NeuCard key={h.id} className="flex items-center justify-between py-4">
-              <div>
-                <div className="flex items-baseline gap-3">
-                  <div className="font-semibold">{h.name}</div>
-                  {h.name_ar && (
-                    <div className="font-arabic text-[color:var(--emerald)]">
-                      {h.name_ar}
+          {(() => {
+            const activeTemplateIds = new Set(
+              (habitsQ.data ?? []).filter((h) => h.template_id).map((h) => h.template_id as string),
+            );
+            type Row =
+              | { kind: "habit"; sort: number; habit: HabitWithItems }
+              | { kind: "template"; sort: number; template: HabitTemplate };
+            const rows: Row[] = [
+              ...(habitsQ.data ?? []).map(
+                (h): Row => ({ kind: "habit", sort: h.sort_order, habit: h }),
+              ),
+              ...(templatesQ.data ?? [])
+                .filter((t) => !activeTemplateIds.has(t.id))
+                .map((t): Row => ({ kind: "template", sort: t.sort_order, template: t })),
+            ].sort((a, b) => a.sort - b.sort);
+
+            if (!rows.length && !habitsQ.isLoading && !templatesQ.isLoading) {
+              return (
+                <NeuCard className="text-center text-sm text-muted-foreground">
+                  No habits yet.
+                </NeuCard>
+              );
+            }
+
+            return rows.map((row) => {
+              if (row.kind === "habit") {
+                const h = row.habit;
+                return (
+                  <NeuCard key={`h-${h.id}`} className="flex items-center justify-between py-4">
+                    <div className="min-w-0">
+                      <div className="flex items-baseline gap-3">
+                        <div className="font-semibold">{h.name}</div>
+                        {h.name_ar && (
+                          <div className="font-arabic text-[color:var(--emerald)]">
+                            {h.name_ar}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground capitalize">
+                        {h.type}
+                        {h.type === "counter" && h.target ? ` · ${h.target} ${h.unit ?? ""}` : ""}
+                        {h.type === "checklist" ? ` · ${h.checklist.length} items` : ""}
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground capitalize">
-                  {h.type}
-                  {h.type === "counter" && h.target ? ` · ${h.target} ${h.unit ?? ""}` : ""}
-                  {h.type === "checklist" ? ` · ${h.checklist.length} items` : ""}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <NeuButton size="icon" onClick={() => startEdit(h)} aria-label={`Edit ${h.name}`}>
-                  <Pencil className="h-4 w-4" />
-                </NeuButton>
-                <NeuButton
-                  size="icon"
-                  onClick={() => {
-                    if (confirm(`Remove "${h.name}"? Your past logs are kept.`)) {
-                      archive.mutate(h.id);
-                    }
-                  }}
-                  aria-label={`Remove ${h.name}`}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </NeuButton>
-              </div>
-            </NeuCard>
-          ))}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <NeuButton size="icon" onClick={() => startEdit(h)} aria-label={`Edit ${h.name}`}>
+                        <Pencil className="h-4 w-4" />
+                      </NeuButton>
+                      <NeuButton
+                        size="icon"
+                        onClick={() => {
+                          if (confirm(`Remove "${h.name}"? Your past logs are kept.`)) {
+                            archive.mutate(h.id);
+                          }
+                        }}
+                        aria-label={`Remove ${h.name}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </NeuButton>
+                    </div>
+                  </NeuCard>
+                );
+              }
+              const t = row.template;
+              return (
+                <NeuCard key={`t-${t.id}`} className="flex items-center justify-between py-4 opacity-70">
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-3">
+                      <div className="font-semibold">{t.name}</div>
+                      {t.name_ar && (
+                        <div className="font-arabic text-[color:var(--emerald)]">{t.name_ar}</div>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground capitalize">
+                      {t.type}
+                      {t.type === "counter" && t.target ? ` · ${t.target} ${t.unit ?? ""}` : ""}
+                      {t.type === "checklist" ? ` · ${t.checklist_labels.length} items` : ""}
+                      {" · not added"}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={false}
+                    disabled={addFromTemplate.isPending}
+                    onCheckedChange={() => addFromTemplate.mutate(t)}
+                    aria-label={`Add ${t.name}`}
+                    className="shrink-0"
+                  />
+                </NeuCard>
+              );
+            });
+          })()}
         </div>
       </section>
 
@@ -362,104 +424,6 @@ function SettingsPage() {
         </NeuButton>
       </section>
     </AppShell>
-  );
-}
-
-const SUBCATEGORY_LABELS: Record<HabitSubcategory, string> = {
-  prayer: "Prayer",
-  dhikr: "Dhikr",
-  quran: "Qur'an",
-  fasting: "Fasting",
-  character: "Character & Daily Life",
-};
-const SUBCATEGORY_ORDER: HabitSubcategory[] = ["prayer", "dhikr", "quran", "fasting", "character"];
-
-function HabitCatalog() {
-  const qc = useQueryClient();
-  const templatesQ = useQuery({ queryKey: ["habit-templates"], queryFn: fetchHabitTemplates });
-  const habitsQ = useQuery({ queryKey: ["habits"], queryFn: fetchHabits });
-
-  const activeByTemplate = new Map(
-    (habitsQ.data ?? [])
-      .filter((h) => h.template_id)
-      .map((h) => [h.template_id as string, h.id]),
-  );
-
-  const addMut = useMutation({
-    mutationFn: addHabitFromTemplate,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["habits"] });
-      toast.success("Added to your habits");
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
-  });
-  const removeMut = useMutation({
-    mutationFn: archiveHabit,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["habits"] });
-      toast.success("Removed");
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to remove"),
-  });
-
-  if (templatesQ.isLoading) {
-    return (
-      <NeuCard className="text-center text-sm text-muted-foreground">
-        Loading the Sunnah catalog…
-      </NeuCard>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground px-1">
-        Sunnah catalog
-      </h2>
-      {SUBCATEGORY_ORDER.map((key) => {
-        const items = (templatesQ.data ?? []).filter((t) => t.subcategory === key);
-        if (!items.length) return null;
-        return (
-          <div key={key} className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground px-1">
-              {SUBCATEGORY_LABELS[key]}
-            </h3>
-            <NeuCard className="p-0 divide-y divide-border/50">
-              {items.map((t) => {
-                const activeHabitId = activeByTemplate.get(t.id);
-                const checked = !!activeHabitId;
-                return (
-                  <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-4">
-                    <div className="min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-medium text-sm">{t.name}</span>
-                        {t.name_ar && (
-                          <span className="font-arabic text-sm text-[color:var(--emerald)]">
-                            {t.name_ar}
-                          </span>
-                        )}
-                      </div>
-                      {t.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                          {t.description}
-                        </p>
-                      )}
-                    </div>
-                    <Switch
-                      checked={checked}
-                      disabled={addMut.isPending || removeMut.isPending}
-                      onCheckedChange={(next) => {
-                        if (next) addMut.mutate(t);
-                        else if (activeHabitId) removeMut.mutate(activeHabitId);
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </NeuCard>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 
