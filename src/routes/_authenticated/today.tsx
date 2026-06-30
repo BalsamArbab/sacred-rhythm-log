@@ -161,6 +161,7 @@ function HabitCard({
 }) {
   const qc = useQueryClient();
   const [readerOpen, setReaderOpen] = useState(false);
+  const [quranOpen, setQuranOpen] = useState(false);
   const mut = useMutation({
     mutationFn: upsertLog,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["logs", date] }),
@@ -168,6 +169,8 @@ function HabitCard({
 
   const pct = habitCompletionPct(habit, log);
   const isAdhkar = habit.type === "counter" && habit.unit === "adhkar";
+  const isQuran = isQuranHabit(habit);
+
 
   return (
     <NeuCard className="space-y-4">
