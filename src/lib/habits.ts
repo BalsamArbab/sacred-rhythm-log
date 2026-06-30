@@ -285,14 +285,6 @@ export async function addHabitFromTemplate(template: HabitTemplate) {
   const uid = userData.user?.id;
   if (!uid) throw new Error("Not authenticated");
 
-  const { data: maxRow } = await supabase
-    .from("habits")
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const nextSort = (maxRow?.sort_order ?? -1) + 1;
-
   const { data: habit, error } = await supabase
     .from("habits")
     .insert({
@@ -308,7 +300,10 @@ export async function addHabitFromTemplate(template: HabitTemplate) {
       recurrence_type: template.recurrence_type,
       recurrence_data: template.recurrence_data as unknown as Database["public"]["Tables"]["habits"]["Insert"]["recurrence_data"],
       menstruation_behavior: template.menstruation_behavior,
-      sort_order: nextSort,
+      // Use the catalog's own ordering rather than "end of list" — keeps the
+      // habit in its intended place (e.g. all Prayer-subcategory items
+      // together) no matter what order the user toggled things on.
+      sort_order: template.sort_order,
     })
     .select()
     .single();
