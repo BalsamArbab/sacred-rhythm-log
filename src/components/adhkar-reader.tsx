@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Plus, Minus, Check, RotateCcw } from "lucide-react";
-import { NeuButton, NeuCard } from "@/components/neu";
+import { X, Plus, Minus, Check, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import { NeuButton } from "@/components/neu";
 import {
   fetchAdhkarItems,
   parseAdhkarProgress,
   countCompletedAdhkar,
+  type AdhkarItem,
   type AdhkarProgress,
 } from "@/lib/adhkar";
 import { upsertLog, type HabitLog, type HabitWithItems } from "@/lib/habits";
@@ -48,6 +49,20 @@ export function AdhkarReader({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["logs", date] }),
   });
 
+  // Which card is currently front-and-center. Starts at the first not-yet-done item.
+  const [index, setIndex] = useState(0);
+
+  const firstUnfinished = useMemo(() => {
+    const i = items.findIndex((it) => (progress[it.id] ?? 0) < it.repeat_count);
+    return i === -1 ? Math.max(0, items.length - 1) : i;
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset to the right starting card whenever the reader is (re)opened or items load.
+  useEffect(() => {
+    if (open) setIndex(firstUnfinished);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, items.length]);
+
   // Lock body scroll while open
   useEffect(() => {
     if (!open) return;
@@ -63,17 +78,29 @@ export function AdhkarReader({
   const completed = countCompletedAdhkar(items, progress);
   const total = items.length || 1;
   const pct = Math.round((completed / total) * 100);
+  const allDone = items.length > 0 && completed >= items.length;
 
   function bump(itemId: string, delta: number, max: number) {
     const cur = progress[itemId] ?? 0;
     const nextVal = Math.max(0, Math.min(max, cur + delta));
+    const wasComplete = cur >= max;
     const next = { ...progress, [itemId]: nextVal };
     mut.mutate(next);
+
+    // Auto-advance to the next card the moment this one is completed
+    if (delta > 0 && !wasComplete && nextVal >= max) {
+      setTimeout(() => {
+        setIndex((i) => Math.min(items.length - 1, i + 1));
+      }, 280);
+    }
   }
 
   function reset() {
     mut.mutate({});
+    setIndex(0);
   }
+
+  const current = items[index];
 
   return (
     <div
@@ -119,8 +146,8 @@ export function AdhkarReader({
           </div>
         </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {/* Card stack */}
+        <div className="flex-1 overflow-hidden px-4 py-5 flex flex-col">
           {itemsQ.isLoading && (
             <div className="text-center text-sm text-muted-foreground py-10">
               Loading adhkar…
@@ -131,88 +158,63 @@ export function AdhkarReader({
               No adhkar yet for this habit.
             </div>
           )}
-          {items.map((it, idx) => {
-            const count = progress[it.id] ?? 0;
-            const done = count >= it.repeat_count;
-            return (
-              <NeuCard
-                key={it.id}
-                className={cn(
-                  "space-y-3 transition-all",
-                  done && "opacity-70",
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {idx + 1} of {items.length}
-                    {it.source ? ` · ${it.source}` : ""}
+
+          {!itemsQ.isLoading && items.length > 0 && (
+            <>
+              {allDone ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 py-10">
+                  <div className="h-14 w-14 rounded-full bg-[color:var(--emerald)] text-primary-foreground flex items-center justify-center">
+                    <Check className="h-7 w-7" />
                   </div>
-                  {done && (
-                    <span className="text-[color:var(--emerald)] flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest">
-                      <Check className="h-3 w-3" /> Done
-                    </span>
+                  <p className="font-semibold">All done for today</p>
+                  <p className="text-xs text-muted-foreground">
+                    {items.length} of {items.length} completed. Alhamdulillāh.
+                  </p>
+                </div>
+              ) : (
+                <div className="relative flex-1 min-h-[280px]">
+                  {/* Peek cards behind the active one, for the "stack" feel */}
+                  {items[index + 2] && (
+                    <div className="absolute inset-x-4 top-4 bottom-0 rounded-3xl neu-flat opacity-40 scale-[0.93]" />
                   )}
+                  {items[index + 1] && (
+                    <div className="absolute inset-x-2 top-2 bottom-0 rounded-3xl neu-flat opacity-70 scale-[0.97]" />
+                  )}
+                  <AdhkarCard
+                    key={current.id}
+                    item={current}
+                    index={index}
+                    total={items.length}
+                    count={progress[current.id] ?? 0}
+                    onBump={(d) => bump(current.id, d, current.repeat_count)}
+                  />
                 </div>
+              )}
 
-                <p
-                  dir="rtl"
-                  lang="ar"
-                  className="font-arabic text-xl leading-[2.1] text-foreground"
+              {/* Manual navigation */}
+              <div className="flex items-center justify-between gap-3 mt-4">
+                <NeuButton
+                  size="icon"
+                  onClick={() => setIndex((i) => Math.max(0, i - 1))}
+                  disabled={index === 0}
+                  aria-label="Previous dhikr"
                 >
-                  {it.arabic}
-                </p>
-
-                {it.transliteration && (
-                  <p className="text-xs italic text-muted-foreground leading-relaxed">
-                    {it.transliteration}
-                  </p>
-                )}
-                {it.translation && (
-                  <p className="text-sm text-foreground/80 leading-relaxed">
-                    {it.translation}
-                  </p>
-                )}
-
-                {/* Counter */}
-                <div className="flex items-center gap-3 pt-1">
-                  <NeuButton
-                    size="icon"
-                    onClick={() => bump(it.id, -1, it.repeat_count)}
-                    disabled={count <= 0}
-                    aria-label="Decrease count"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </NeuButton>
-
-                  <button
-                    onClick={() => bump(it.id, +1, it.repeat_count)}
-                    className={cn(
-                      "flex-1 rounded-2xl py-3 text-center transition-all",
-                      done
-                        ? "bg-[color:var(--emerald)] text-primary-foreground neu-flat"
-                        : "neu-pressed",
-                    )}
-                  >
-                    <div className="text-2xl font-semibold tabular-nums leading-none">
-                      {count}
-                      <span className="text-sm font-normal opacity-70"> / {it.repeat_count}</span>
-                    </div>
-                    <div className="text-[10px] uppercase tracking-widest mt-1 opacity-80">
-                      tap to count
-                    </div>
-                  </button>
-
-                  <NeuButton
-                    size="icon"
-                    onClick={() => bump(it.id, +1, it.repeat_count)}
-                    aria-label="Increase count"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </NeuButton>
+                  <ChevronLeft className="h-4 w-4" />
+                </NeuButton>
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {Math.min(index + 1, items.length)} of {items.length}
                 </div>
-              </NeuCard>
-            );
-          })}
+                <NeuButton
+                  size="icon"
+                  onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))}
+                  disabled={index >= items.length - 1}
+                  aria-label="Next dhikr"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </NeuButton>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
@@ -225,6 +227,89 @@ export function AdhkarReader({
             Done
           </NeuButton>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AdhkarCard({
+  item,
+  index,
+  total,
+  count,
+  onBump,
+}: {
+  item: AdhkarItem;
+  index: number;
+  total: number;
+  count: number;
+  onBump: (delta: number) => void;
+}) {
+  const done = count >= item.repeat_count;
+  return (
+    <div
+      className={cn(
+        "relative h-full neu-raised rounded-3xl p-5 flex flex-col gap-3 transition-all duration-200",
+        "animate-in fade-in slide-in-from-right-4",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          {index + 1} of {total}
+          {item.source ? ` · ${item.source}` : ""}
+        </div>
+        {done && (
+          <span className="text-[color:var(--emerald)] flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest">
+            <Check className="h-3 w-3" /> Done
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-3">
+        <p dir="rtl" lang="ar" className="font-arabic text-2xl leading-[2.1] text-foreground">
+          {item.arabic}
+        </p>
+
+        {item.transliteration && (
+          <p className="text-xs italic text-muted-foreground leading-relaxed">
+            {item.transliteration}
+          </p>
+        )}
+        {item.translation && (
+          <p className="text-sm text-foreground/80 leading-relaxed">{item.translation}</p>
+        )}
+      </div>
+
+      {/* Counter */}
+      <div className="flex items-center gap-3 pt-1">
+        <NeuButton
+          size="icon"
+          onClick={() => onBump(-1)}
+          disabled={count <= 0}
+          aria-label="Decrease count"
+        >
+          <Minus className="h-4 w-4" />
+        </NeuButton>
+
+        <button
+          onClick={() => onBump(+1)}
+          className={cn(
+            "flex-1 rounded-2xl py-3 text-center transition-all",
+            done ? "bg-[color:var(--emerald)] text-primary-foreground neu-flat" : "neu-pressed",
+          )}
+        >
+          <div className="text-2xl font-semibold tabular-nums leading-none">
+            {count}
+            <span className="text-sm font-normal opacity-70"> / {item.repeat_count}</span>
+          </div>
+          <div className="text-[10px] uppercase tracking-widest mt-1 opacity-80">
+            tap to count
+          </div>
+        </button>
+
+        <NeuButton size="icon" onClick={() => onBump(+1)} aria-label="Increase count">
+          <Plus className="h-4 w-4" />
+        </NeuButton>
       </div>
     </div>
   );
