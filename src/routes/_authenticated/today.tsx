@@ -5,6 +5,8 @@ import { Plus, Minus, Check, BookOpen } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton } from "@/components/neu";
 import { AdhkarReader } from "@/components/adhkar-reader";
+import { QuranReader } from "@/components/quran-reader";
+import { isQuranHabit } from "@/lib/quran";
 import { cn } from "@/lib/utils";
 import {
   fetchHabits,
