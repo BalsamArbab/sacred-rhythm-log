@@ -1,19 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trash2, Plus, LogOut, Sun, Moon, Monitor } from "lucide-react";
+import { Trash2, Plus, LogOut, Sun, Moon, Monitor, Pencil, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton, NeuInset } from "@/components/neu";
 import { Switch } from "@/components/ui/switch";
 import {
   fetchHabits,
   createHabit,
+  updateHabit,
   archiveHabit,
   fetchProfile,
   updateDailyGoal,
   fetchHabitTemplates,
   addHabitFromTemplate,
   type HabitSubcategory,
+  type HabitWithItems,
 } from "@/lib/habits";
 import { useTheme, type Theme } from "@/components/theme-provider";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,7 +37,7 @@ function SettingsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
   });
 
-  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null); // null = closed, "new" = creating, else habit id
   const [form, setForm] = useState({
     name: "",
     name_ar: "",
@@ -44,6 +46,33 @@ function SettingsPage() {
     target: "",
     checklist: "",
   });
+  const open = editingId !== null;
+
+  function resetForm() {
+    setForm({ name: "", name_ar: "", type: "boolean", unit: "", target: "", checklist: "" });
+  }
+
+  function startCreate() {
+    if (open) {
+      setEditingId(null);
+      resetForm();
+    } else {
+      resetForm();
+      setEditingId("new");
+    }
+  }
+
+  function startEdit(h: HabitWithItems) {
+    setForm({
+      name: h.name,
+      name_ar: h.name_ar ?? "",
+      type: h.type,
+      unit: h.unit ?? "",
+      target: h.target ? String(h.target) : "",
+      checklist: h.checklist.map((c) => c.label).join(", "),
+    });
+    setEditingId(h.id);
+  }
 
   const create = useMutation({
     mutationFn: () =>
@@ -60,9 +89,31 @@ function SettingsPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["habits"] });
-      setOpen(false);
-      setForm({ name: "", name_ar: "", type: "boolean", unit: "", target: "", checklist: "" });
+      setEditingId(null);
+      resetForm();
       toast.success("Habit added");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  const update = useMutation({
+    mutationFn: () =>
+      updateHabit({
+        id: editingId as string,
+        name: form.name,
+        name_ar: form.name_ar || undefined,
+        unit: form.unit || undefined,
+        target: form.target ? Number(form.target) : undefined,
+        checklist_labels:
+          form.type === "checklist"
+            ? form.checklist.split(",").map((s) => s.trim()).filter(Boolean)
+            : undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["habits"] });
+      setEditingId(null);
+      resetForm();
+      toast.success("Habit updated");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
@@ -144,13 +195,17 @@ function SettingsPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Habits
           </h2>
-          <NeuButton size="sm" variant="primary" onClick={() => setOpen((v) => !v)}>
-            <Plus className="h-4 w-4 mr-1" /> {open ? "Cancel" : "Add"}
+          <NeuButton size="sm" variant="primary" onClick={startCreate}>
+            {open ? <X className="h-4 w-4 mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+            {open ? "Cancel" : "Add"}
           </NeuButton>
         </div>
 
         {open && (
           <NeuCard className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+              {editingId === "new" ? "New habit" : "Edit habit"}
+            </p>
             <Field label="Name">
               <NeuInset className="px-3 py-2">
                 <input
@@ -177,8 +232,9 @@ function SettingsPage() {
                 {(["boolean", "counter", "checklist"] as const).map((t) => (
                   <button
                     key={t}
+                    disabled={editingId !== "new"}
                     onClick={() => setForm({ ...form, type: t })}
-                    className={`flex-1 py-2 text-xs rounded-xl capitalize transition-all ${
+                    className={`flex-1 py-2 text-xs rounded-xl capitalize transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       form.type === t
                         ? "neu-raised-sm text-[color:var(--emerald)] font-semibold"
                         : "text-muted-foreground"
@@ -188,16 +244,36 @@ function SettingsPage() {
                   </button>
                 ))}
               </div>
+              {editingId !== "new" && (
+                <p className="text-[10px] text-muted-foreground px-1">
+                  Habit type can't be changed after creation — delete and re-add instead.
+                </p>
+              )}
             </Field>
             {form.type === "counter" && (
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Unit">
-                  <NeuInset className="px-3 py-2">
+                  <div className="neu-pressed-sm rounded-2xl p-1 flex">
+                    {(["pages", "verses", "minutes"] as const).map((u) => (
+                      <button
+                        key={u}
+                        onClick={() => setForm({ ...form, unit: u })}
+                        className={`flex-1 py-2 text-xs rounded-xl capitalize transition-all ${
+                          form.unit === u
+                            ? "neu-raised-sm text-[color:var(--emerald)] font-semibold"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                  <NeuInset className="px-3 py-2 mt-1.5">
                     <input
                       value={form.unit}
                       onChange={(e) => setForm({ ...form, unit: e.target.value })}
                       className="w-full bg-transparent outline-none text-sm"
-                      placeholder="pages, count…"
+                      placeholder="or type a custom unit…"
                     />
                   </NeuInset>
                 </Field>
@@ -230,10 +306,10 @@ function SettingsPage() {
             <NeuButton
               variant="primary"
               className="w-full"
-              disabled={!form.name || create.isPending}
-              onClick={() => create.mutate()}
+              disabled={!form.name || create.isPending || update.isPending}
+              onClick={() => (editingId === "new" ? create.mutate() : update.mutate())}
             >
-              Save habit
+              {editingId === "new" ? "Save habit" : "Save changes"}
             </NeuButton>
           </NeuCard>
         )}
@@ -256,16 +332,22 @@ function SettingsPage() {
                   {h.type === "checklist" ? ` · ${h.checklist.length} items` : ""}
                 </div>
               </div>
-              <NeuButton
-                size="icon"
-                onClick={() => {
-                  if (confirm(`Remove "${h.name}"? Your past logs are kept.`)) {
-                    archive.mutate(h.id);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </NeuButton>
+              <div className="flex items-center gap-2">
+                <NeuButton size="icon" onClick={() => startEdit(h)} aria-label={`Edit ${h.name}`}>
+                  <Pencil className="h-4 w-4" />
+                </NeuButton>
+                <NeuButton
+                  size="icon"
+                  onClick={() => {
+                    if (confirm(`Remove "${h.name}"? Your past logs are kept.`)) {
+                      archive.mutate(h.id);
+                    }
+                  }}
+                  aria-label={`Remove ${h.name}`}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </NeuButton>
+              </div>
             </NeuCard>
           ))}
         </div>
