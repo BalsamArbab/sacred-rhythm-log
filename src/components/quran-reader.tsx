@@ -19,6 +19,7 @@ import {
   upsertReadingState,
   type Chapter,
   type Verse,
+  type LockedSegment,
 } from "@/lib/quran";
 import { upsertLog, type HabitLog, type HabitWithItems } from "@/lib/habits";
 import { cn } from "@/lib/utils";
@@ -31,17 +32,26 @@ export function QuranReader({
   date,
   open,
   onClose,
+  lockedSequence,
 }: {
   habit: HabitWithItems;
   log: HabitLog | undefined;
   date: string;
   open: boolean;
   onClose: () => void;
+  /**
+   * When set, the reader is locked to this specific sequence of
+   * surahs/ayah-ranges (e.g. Al-Kahf, or Ikhlas+Falaq+Nas+Ayat-al-Kursi in
+   * order) instead of letting the user pick any surah. Used for habits
+   * that are tied to fixed recitations rather than open-ended reading.
+   */
+  lockedSequence?: LockedSegment[];
 }) {
   const qc = useQueryClient();
-  const trackingMode =
-    (habit as unknown as { quran_tracking_mode?: "pages" | "verses" | "minutes" })
-      .quran_tracking_mode ?? "pages";
+  const trackingMode = lockedSequence
+    ? "verses"
+    : ((habit as unknown as { quran_tracking_mode?: "pages" | "verses" | "minutes" })
+        .quran_tracking_mode ?? "pages");
 
   const chaptersQ = useQuery({
     queryKey: ["quran-chapters"],
@@ -59,6 +69,7 @@ export function QuranReader({
   // Local UI state, seeded from server state once it loads
   const [surah, setSurah] = useState(1);
   const [ayah, setAyah] = useState(1);
+  const [segIndex, setSegIndex] = useState(0);
   const [mode, setMode] = useState<Mode>("verse");
   const [showTranslation, setShowTranslation] = useState(true);
   const [hydrated, setHydrated] = useState(false);
@@ -66,6 +77,8 @@ export function QuranReader({
 
   // Time tracking
   const [sessionStart, setSessionStart] = useState<number | null>(null);
+
+  const activeSeg = lockedSequence?.[segIndex] ?? null;
 
   // Hydrate from server reading state on first open
   useEffect(() => {
@@ -76,7 +89,20 @@ export function QuranReader({
     }
     if (hydrated || stateQ.isLoading) return;
     const s = stateQ.data;
-    if (s) {
+    if (lockedSequence) {
+      const foundIdx = s ? lockedSequence.findIndex((seg) => seg.surah === s.surah) : -1;
+      if (foundIdx >= 0 && s) {
+        setSegIndex(foundIdx);
+        setSurah(s.surah);
+        setAyah(s.ayah);
+      } else {
+        setSegIndex(0);
+        setSurah(lockedSequence[0].surah);
+        setAyah(lockedSequence[0].fromAyah ?? 1);
+      }
+      setMode("verse");
+      setShowTranslation(s?.show_translation ?? true);
+    } else if (s) {
       setSurah(s.surah);
       setAyah(s.ayah);
       setMode(s.view_mode);
@@ -84,6 +110,7 @@ export function QuranReader({
     }
     setHydrated(true);
     setSessionStart(Date.now());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hydrated, stateQ.isLoading, stateQ.data]);
 
   // Lock body scroll
@@ -106,21 +133,35 @@ export function QuranReader({
   const verses = versesQ.data ?? [];
   const chapter = chaptersQ.data?.find((c) => c.id === surah);
 
-  // Clamp ayah to the surah length once it loads
-  useEffect(() => {
-    if (verses.length && ayah > verses.length) setAyah(verses.length);
-  }, [verses.length, ayah]);
+  // When locked to a segment (e.g. just ayah 255 of Al-Baqarah), only that
+  // ayah range is navigable/visible — not the whole surah.
+  const scopedVerses = useMemo(() => {
+    if (!activeSeg) return verses;
+    const from = activeSeg.fromAyah ?? 1;
+    const to = activeSeg.toAyah ?? Infinity;
+    return verses.filter((v) => v.verse_number >= from && v.verse_number <= to);
+  }, [verses, activeSeg]);
 
-  const currentIdx = Math.max(0, verses.findIndex((v) => v.verse_number === ayah));
-  const current = verses[currentIdx];
+  // Clamp ayah to the valid range once verses load
+  useEffect(() => {
+    if (!activeSeg) {
+      if (verses.length && ayah > verses.length) setAyah(verses.length);
+      return;
+    }
+    const from = activeSeg.fromAyah ?? 1;
+    const to = activeSeg.toAyah ?? (verses.length || from);
+    if (ayah < from) setAyah(from);
+    else if (ayah > to) setAyah(to);
+  }, [verses.length, ayah, activeSeg]);
+
+  const currentIdx = Math.max(
+    0,
+    scopedVerses.findIndex((v) => v.verse_number === ayah),
+  );
+  const current = scopedVerses[currentIdx];
 
   const persist = useMutation({
-    mutationFn: (next: {
-      surah: number;
-      ayah: number;
-      mode?: Mode;
-      showTranslation?: boolean;
-    }) =>
+    mutationFn: (next: { surah: number; ayah: number; mode?: Mode; showTranslation?: boolean }) =>
       upsertReadingState({
         habit_id: habit.id,
         surah: next.surah,
@@ -137,22 +178,44 @@ export function QuranReader({
     persist.mutate({ surah: nextSurah, ayah: nextAyah });
   }
 
-  // Increment habit counter in the relevant unit
+  function goToSegment(idx: number, fromStart: boolean) {
+    if (!lockedSequence) return;
+    const seg = lockedSequence[idx];
+    setSegIndex(idx);
+    const a = fromStart ? (seg.fromAyah ?? 1) : (seg.toAyah ?? seg.fromAyah ?? 1);
+    savePosition(seg.surah, a);
+  }
+
+  // Increment habit counter in the relevant unit. For boolean habits (the
+  // fixed-surah readers) "done" is a separate manual checkbox — reading
+  // progress here is purely informational history, so we never recompute
+  // completed_bool from a target for them.
   const logMut = useMutation({
     mutationFn: (delta: number) => {
-      const target = habit.target ?? 1;
       const nextVal = Math.max(0, (log?.value_num ?? 0) + delta);
+      const completed_bool =
+        habit.type === "boolean" ? (log?.completed_bool ?? false) : nextVal >= (habit.target ?? 1);
       return upsertLog({
         habit_id: habit.id,
         log_date: date,
         value_num: nextVal,
-        completed_bool: nextVal >= target,
+        completed_bool,
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["logs", date] }),
   });
 
   function nextAyah() {
+    if (lockedSequence) {
+      if (!current) return;
+      logMut.mutate(1);
+      if (currentIdx + 1 < scopedVerses.length) {
+        savePosition(surah, scopedVerses[currentIdx + 1].verse_number);
+      } else if (segIndex + 1 < lockedSequence.length) {
+        goToSegment(segIndex + 1, true);
+      }
+      return;
+    }
     if (!current || !verses.length) return;
     // Count this ayah toward the goal (verses mode) or pages mode (when crossing a page)
     if (trackingMode === "verses") logMut.mutate(1);
@@ -170,6 +233,14 @@ export function QuranReader({
   }
 
   function prevAyah() {
+    if (lockedSequence) {
+      if (currentIdx > 0) {
+        savePosition(surah, scopedVerses[currentIdx - 1].verse_number);
+      } else if (segIndex > 0) {
+        goToSegment(segIndex - 1, false);
+      }
+      return;
+    }
     if (currentIdx > 0) savePosition(surah, verses[currentIdx - 1].verse_number);
     else if (surah > 1) savePosition(surah - 1, 1);
   }
@@ -185,6 +256,13 @@ export function QuranReader({
 
   if (!open) return null;
 
+  const prevDisabled = lockedSequence
+    ? segIndex === 0 && currentIdx === 0
+    : surah === 1 && currentIdx === 0;
+  const nextDisabled = lockedSequence
+    ? segIndex === lockedSequence.length - 1 && currentIdx === scopedVerses.length - 1
+    : surah === 114 && currentIdx === verses.length - 1;
+
   return (
     <div
       className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center"
@@ -197,18 +275,20 @@ export function QuranReader({
         {/* Header */}
         <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-3 border-b border-border/60">
           <button
-            onClick={() => setPicker(true)}
-            className="text-left flex-1 active:opacity-70"
+            onClick={() => !lockedSequence && setPicker(true)}
+            disabled={!!lockedSequence}
+            className="text-left flex-1 active:opacity-70 disabled:active:opacity-100"
           >
             <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Surah {surah}
-              {chapter ? ` · ${chapter.verses_count} ayāt` : ""}
+              {lockedSequence
+                ? `${segIndex + 1} of ${lockedSequence.length}`
+                : `Surah ${surah}${chapter ? ` · ${chapter.verses_count} ayāt` : ""}`}
             </div>
             <h2 className="text-lg font-semibold mt-0.5 flex items-center gap-1.5">
-              {chapter?.name_simple ?? "Loading…"}
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              {activeSeg?.label ?? chapter?.name_simple ?? "Loading…"}
+              {!lockedSequence && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
             </h2>
-            {chapter?.name_arabic && (
+            {chapter?.name_arabic && !activeSeg?.label && (
               <div className="font-arabic text-base text-[color:var(--emerald)]">
                 {chapter.name_arabic}
               </div>
@@ -223,6 +303,34 @@ export function QuranReader({
           </button>
         </div>
 
+        {/* Segment pager (locked, multi-part readers only) */}
+        {lockedSequence && lockedSequence.length > 1 && (
+          <div className="px-5 py-2 flex items-center justify-between gap-3 border-b border-border/60">
+            <NeuButton
+              size="icon"
+              onClick={() => goToSegment(segIndex - 1, false)}
+              disabled={segIndex === 0}
+              aria-label="Previous part"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </NeuButton>
+            <div className="text-xs text-muted-foreground text-center flex-1">
+              {activeSeg?.label ?? chapter?.name_simple}{" "}
+              <span className="tabular-nums">
+                ({segIndex + 1}/{lockedSequence.length})
+              </span>
+            </div>
+            <NeuButton
+              size="icon"
+              onClick={() => goToSegment(segIndex + 1, true)}
+              disabled={segIndex === lockedSequence.length - 1}
+              aria-label="Next part"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </NeuButton>
+          </div>
+        )}
+
         {/* Mode + translation toggles */}
         <div className="px-5 py-3 flex items-center gap-2 border-b border-border/60">
           <ModeToggle
@@ -234,15 +342,17 @@ export function QuranReader({
             icon={<SquareStack className="h-3.5 w-3.5" />}
             label="Verse"
           />
-          <ModeToggle
-            active={mode === "page"}
-            onClick={() => {
-              setMode("page");
-              persist.mutate({ surah, ayah, mode: "page" });
-            }}
-            icon={<Rows className="h-3.5 w-3.5" />}
-            label="Page"
-          />
+          {!lockedSequence && (
+            <ModeToggle
+              active={mode === "page"}
+              onClick={() => {
+                setMode("page");
+                persist.mutate({ surah, ayah, mode: "page" });
+              }}
+              icon={<Rows className="h-3.5 w-3.5" />}
+              label="Page"
+            />
+          )}
           <div className="flex-1" />
           <button
             onClick={() => {
@@ -266,15 +376,14 @@ export function QuranReader({
         {/* Counter strip */}
         <div className="px-5 py-2 text-xs text-muted-foreground flex items-center justify-between border-b border-border/60">
           <span>
-            Progress: <span className="font-semibold text-foreground tabular-nums">
+            Progress:{" "}
+            <span className="font-semibold text-foreground tabular-nums">
               {log?.value_num ?? 0}
             </span>
             {habit.target ? ` / ${habit.target}` : ""} {habit.unit ?? trackingMode}
           </span>
           {trackingMode === "minutes" && (
-            <span className="text-[10px] uppercase tracking-widest">
-              Time auto-tracked
-            </span>
+            <span className="text-[10px] uppercase tracking-widest">Time auto-tracked</span>
           )}
         </div>
 
@@ -290,7 +399,7 @@ export function QuranReader({
             <VerseCard verse={current} showTranslation={showTranslation} />
           )}
 
-          {!versesQ.isLoading && hydrated && mode === "page" && (
+          {!versesQ.isLoading && hydrated && !lockedSequence && mode === "page" && (
             <PageView
               verses={verses}
               showTranslation={showTranslation}
@@ -308,7 +417,7 @@ export function QuranReader({
             <NeuButton
               size="icon"
               onClick={prevAyah}
-              disabled={surah === 1 && currentIdx === 0}
+              disabled={prevDisabled}
               aria-label="Previous ayah"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -316,12 +425,7 @@ export function QuranReader({
             <div className="flex-1 text-center text-xs text-muted-foreground tabular-nums">
               {surah}:{ayah}
             </div>
-            <NeuButton
-              variant="primary"
-              size="sm"
-              onClick={nextAyah}
-              disabled={surah === 114 && currentIdx === verses.length - 1}
-            >
+            <NeuButton variant="primary" size="sm" onClick={nextAyah} disabled={nextDisabled}>
               {trackingMode === "verses" ? (
                 <>
                   <Check className="h-4 w-4 mr-1.5" /> Next
@@ -335,7 +439,7 @@ export function QuranReader({
           </div>
         )}
 
-        {mode === "page" && (
+        {!lockedSequence && mode === "page" && (
           <div className="px-5 py-4 border-t border-border/60 flex items-center gap-3">
             <NeuButton
               size="sm"
@@ -357,7 +461,7 @@ export function QuranReader({
         )}
 
         {/* Surah picker overlay */}
-        {picker && chaptersQ.data && (
+        {!lockedSequence && picker && chaptersQ.data && (
           <SurahPicker
             chapters={chaptersQ.data}
             current={surah}
@@ -401,13 +505,7 @@ function ModeToggle({
   );
 }
 
-function VerseCard({
-  verse,
-  showTranslation,
-}: {
-  verse: Verse;
-  showTranslation: boolean;
-}) {
+function VerseCard({ verse, showTranslation }: { verse: Verse; showTranslation: boolean }) {
   return (
     <div className="p-5">
       <div className="neu-raised rounded-3xl p-5 flex flex-col gap-4">
@@ -415,11 +513,7 @@ function VerseCard({
           <span>Ayah {verse.verse_key}</span>
           {verse.page_number > 0 && <span>Page {verse.page_number}</span>}
         </div>
-        <p
-          dir="rtl"
-          lang="ar"
-          className="font-arabic text-3xl leading-[2.2] text-foreground"
-        >
+        <p dir="rtl" lang="ar" className="font-arabic text-3xl leading-[2.2] text-foreground">
           {verse.text_uthmani}
         </p>
         {showTranslation && verse.translation && (
@@ -467,17 +561,11 @@ function PageView({
               <span>{v.verse_key}</span>
               {v.page_number > 0 && <span>p. {v.page_number}</span>}
             </div>
-            <p
-              dir="rtl"
-              lang="ar"
-              className="font-arabic text-xl leading-[2] text-foreground"
-            >
+            <p dir="rtl" lang="ar" className="font-arabic text-xl leading-[2] text-foreground">
               {v.text_uthmani}
             </p>
             {showTranslation && v.translation && (
-              <p className="text-xs text-foreground/70 leading-relaxed mt-2">
-                {v.translation}
-              </p>
+              <p className="text-xs text-foreground/70 leading-relaxed mt-2">{v.translation}</p>
             )}
           </button>
         );

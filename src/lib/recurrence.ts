@@ -24,6 +24,23 @@ function isoWeekday(date: Date): number {
 }
 
 /**
+ * Human-readable Hijri date, e.g. "21 Muharram 1448 AH", using the
+ * runtime's built-in Umm al-Qura calendar (same source as getHijriDate).
+ */
+export function formatHijriDate(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    calendar: "islamic-umalqura",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).formatToParts(date);
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const year = parts.find((p) => p.type === "year")?.value ?? "";
+  return `${day} ${month} ${year} AH`;
+}
+
+/**
  * Whether a habit with the given recurrence is due on `date`.
  * Daily habits are always due; weekly/hijri habits only show up on their
  * matching day(s), so e.g. Surah Al-Kahf only appears on Fridays and

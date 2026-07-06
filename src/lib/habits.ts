@@ -1,7 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-export async function fetchProfile(): Promise<{ id: string; display_name: string | null; daily_goal_pct: number } | null> {
+export async function fetchProfile(): Promise<{
+  id: string;
+  display_name: string | null;
+  daily_goal_pct: number;
+} | null> {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
   if (!uid) return null;
@@ -128,10 +132,7 @@ export async function fetchHabits(): Promise<HabitWithItems[]> {
 }
 
 export async function fetchLogsForDate(date: string): Promise<HabitLog[]> {
-  const { data, error } = await supabase
-    .from("habit_logs")
-    .select("*")
-    .eq("log_date", date);
+  const { data, error } = await supabase.from("habit_logs").select("*").eq("log_date", date);
   if (error) throw error;
   return (data ?? []).map((r) => ({
     ...(r as unknown as HabitLog),
@@ -165,7 +166,8 @@ export async function upsertLog(input: {
     user_id: uid,
     log_date: input.log_date,
     value_num: input.value_num ?? 0,
-    completed_items: (input.completed_items ?? []) as unknown as Database["public"]["Tables"]["habit_logs"]["Insert"]["completed_items"],
+    completed_items: (input.completed_items ??
+      []) as unknown as Database["public"]["Tables"]["habit_logs"]["Insert"]["completed_items"],
     completed_bool: input.completed_bool ?? false,
     updated_at: new Date().toISOString(),
   };
@@ -267,10 +269,7 @@ export async function updateHabit(input: {
 }
 
 export async function fetchHabitTemplates(): Promise<HabitTemplate[]> {
-  const { data, error } = await supabase
-    .from("habit_templates")
-    .select("*")
-    .order("sort_order");
+  const { data, error } = await supabase.from("habit_templates").select("*").order("sort_order");
   if (error) throw error;
   return (data ?? []).map((t) => ({
     ...t,
@@ -298,7 +297,8 @@ export async function addHabitFromTemplate(template: HabitTemplate) {
       category: template.category,
       subcategory: template.subcategory,
       recurrence_type: template.recurrence_type,
-      recurrence_data: template.recurrence_data as unknown as Database["public"]["Tables"]["habits"]["Insert"]["recurrence_data"],
+      recurrence_data:
+        template.recurrence_data as unknown as Database["public"]["Tables"]["habits"]["Insert"]["recurrence_data"],
       menstruation_behavior: template.menstruation_behavior,
       // Use the catalog's own ordering rather than "end of list" — keeps the
       // habit in its intended place (e.g. all Prayer-subcategory items
@@ -319,6 +319,38 @@ export async function addHabitFromTemplate(template: HabitTemplate) {
     if (e2) throw e2;
   }
   return habit;
+}
+
+/**
+ * Habits that recur on more than one specific weekday (e.g. Monday &
+ * Thursday Fasting) already track each day independently under the hood —
+ * habit_logs is keyed by (habit_id, log_date), so Monday's entry and
+ * Thursday's entry are separate rows and marking one never touches the
+ * other. This just makes that obvious in the UI: show the specific day's
+ * name instead of the combined "Monday & Thursday" label so it reads as
+ * one day's yes/no rather than a shared weekly toggle.
+ */
+const WEEKDAY_NAMES = [
+  "",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+export function displayHabitName(habit: HabitRow, date: Date): string {
+  const weekdays = habit.recurrence_type === "weekly" ? habit.recurrence_data?.weekdays : undefined;
+  if (!weekdays || weekdays.length < 2) return habit.name;
+  const isoWeekday = ((date.getDay() + 6) % 7) + 1;
+  if (!weekdays.includes(isoWeekday)) return habit.name;
+  const dayName = WEEKDAY_NAMES[isoWeekday];
+  // Swap the leading "<Day1> & <Day2>" (or similar) portion of the name for
+  // just today's day, keeping the rest of the label (e.g. "Fasting") intact.
+  const rest = habit.name.replace(/^[A-Za-z]+(\s*&\s*[A-Za-z]+)*\s*/, "").trim();
+  return rest ? `${dayName} ${rest}` : `${dayName}`;
 }
 
 export function habitCompletionPct(habit: HabitWithItems, log: HabitLog | undefined): number {

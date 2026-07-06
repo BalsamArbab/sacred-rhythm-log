@@ -149,9 +149,7 @@ export function AdhkarReader({
         {/* Card stack */}
         <div className="flex-1 overflow-hidden px-4 py-5 flex flex-col">
           {itemsQ.isLoading && (
-            <div className="text-center text-sm text-muted-foreground py-10">
-              Loading adhkar…
-            </div>
+            <div className="text-center text-sm text-muted-foreground py-10">Loading adhkar…</div>
           )}
           {!itemsQ.isLoading && items.length === 0 && (
             <div className="text-center text-sm text-muted-foreground py-10">
@@ -294,15 +292,22 @@ function AdhkarCard({
         <button
           onClick={() => onBump(+1)}
           className={cn(
-            "flex-1 rounded-2xl py-3 text-center transition-all",
+            "relative flex-1 rounded-2xl py-3 text-center transition-all overflow-hidden",
             done ? "bg-[color:var(--emerald)] text-primary-foreground neu-flat" : "neu-pressed",
           )}
         >
-          <div className="text-2xl font-semibold tabular-nums leading-none">
+          {!done && (
+            <div
+              className="absolute inset-y-0 left-0 bg-[color:var(--emerald)] opacity-25 transition-all duration-300"
+              style={{ width: `${Math.floor((count / item.repeat_count) * 100)}%` }}
+              aria-hidden="true"
+            />
+          )}
+          <div className="relative text-2xl font-semibold tabular-nums leading-none">
             {count}
             <span className="text-sm font-normal opacity-70"> / {item.repeat_count}</span>
           </div>
-          <div className="text-[10px] uppercase tracking-widest mt-1 opacity-80">
+          <div className="relative text-[10px] uppercase tracking-widest mt-1 opacity-80">
             tap to count
           </div>
         </button>

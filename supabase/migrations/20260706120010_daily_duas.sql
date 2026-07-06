@@ -1,0 +1,51 @@
+-- Read-only reference table powering the "Dua of the day" card on Today.
+-- Seeded with a curated first batch from Hisn al-Muslim ("Fortress of the
+-- Muslim") spanning ~10 of the book's chapters. It's not the full 267/268
+-- dua collection yet — more chapters can be appended later with the same
+-- INSERT shape, keyed by sort_order.
+
+CREATE TABLE public.daily_duas (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  category TEXT NOT NULL,
+  arabic TEXT NOT NULL,
+  transliteration TEXT,
+  translation TEXT,
+  source TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+GRANT SELECT ON public.daily_duas TO authenticated;
+GRANT ALL ON public.daily_duas TO service_role;
+
+ALTER TABLE public.daily_duas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "daily duas readable by authenticated"
+  ON public.daily_duas FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE INDEX idx_daily_duas_sort ON public.daily_duas(sort_order);
+
+INSERT INTO public.daily_duas (category, sort_order, arabic, transliteration, translation, source) VALUES
+('Waking up', 0, 'الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ', 'Alḥamdu lillāhi-lladhī aḥyānā baʿda mā amātanā wa ilayhi-n-nushūr.', 'All praise is for Allah who gave us life after having taken it from us, and unto Him is the resurrection.', 'Hisn al-Muslim #1 · Bukhari'),
+('Waking up', 1, 'الْحَمْدُ لِلَّهِ الَّذِي عَافَانِي فِي جَسَدِي وَرَدَّ عَلَيَّ رُوحِي وَأَذِنَ لِي بِذِكْرِهِ', 'Alḥamdu lillāhi-lladhī ʿāfānī fī jasadī, wa radda ʿalayya rūḥī, wa adhina lī bi-dhikrih.', 'All praise is for Allah who restored to me my health and returned my soul, and has allowed me to remember Him.', 'Hisn al-Muslim #3 · Tirmidhi'),
+('Before sleeping', 2, 'بِاسْمِكَ رَبِّي وَضَعْتُ جَنْبِي، وَبِكَ أَرْفَعُهُ، فَإِنْ أَمْسَكْتَ نَفْسِي فَارْحَمْهَا، وَإِنْ أَرْسَلْتَهَا فَاحْفَظْهَا، بِمَا تَحْفَظُ بِهِ عِبَادَكَ الصَّالِحِينَ', 'Bismika Rabbī waḍaʿtu janbī, wa bika arfaʿuh, fa-in amsakta nafsī fa-rḥamhā, wa in arsaltahā fa-ḥfaẓhā bimā taḥfaẓu bihi ʿibādaka-ṣ-ṣāliḥīn.', 'In Your name, my Lord, I lie down, and in Your name I rise. So if You should take my soul, then have mercy upon it, and if You should return it, then protect it as You protect Your righteous servants.', 'Hisn al-Muslim #102 · Bukhari, Muslim'),
+('Before sleeping', 3, 'اللَّهُمَّ إِنَّكَ خَلَقْتَ نَفْسِي وَأَنْتَ تَوَفَّاهَا، لَكَ مَمَاتُهَا وَمَحْيَاهَا، إِنْ أَحْيَيْتَهَا فَاحْفَظْهَا، وَإِنْ أَمَتَّهَا فَاغْفِرْ لَهَا، اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَافِيَةَ', 'Allāhumma innaka khalaqta nafsī wa anta tawaffāhā, laka mamātuhā wa maḥyāhā, in aḥyaytahā fa-ḥfaẓhā, wa in amattahā fa-ghfir lahā. Allāhumma innī as''aluka-l-ʿāfiyah.', 'O Allah, You have created my soul and You take its life; to You belongs its death and its life. If You keep it alive, then protect it, and if You take its life, then forgive it. O Allah, I ask You for good health.', 'Hisn al-Muslim #103 · Muslim'),
+('Before sleeping', 4, 'بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا', 'Bismikallāhumma amūtu wa aḥyā.', 'In Your name, O Allah, I die and I live.', 'Hisn al-Muslim #105 · Bukhari'),
+('Before sleeping', 5, 'سُبْحَانَ اللَّهِ (ثَلَاثًا وَثَلَاثِينَ) وَالْحَمْدُ لِلَّهِ (ثَلَاثًا وَثَلَاثِينَ) وَاللَّهُ أَكْبَرُ (أَرْبَعًا وَثَلَاثِينَ)', 'SubḥānAllāh (33 times), wa-l-ḥamdu lillāh (33 times), wa-llāhu akbar (34 times).', 'How perfect Allah is (33 times). All praise is for Allah (33 times). Allah is the greatest (34 times).', 'Hisn al-Muslim #106 · Bukhari, Muslim'),
+('Before sleeping', 6, 'اللَّهُمَّ أَسْلَمْتُ نَفْسِي إِلَيْكَ، وَفَوَّضْتُ أَمْرِي إِلَيْكَ، وَوَجَّهْتُ وَجْهِي إِلَيْكَ، وَأَلْجَأْتُ ظَهْرِي إِلَيْكَ، رَغْبَةً وَرَهْبَةً إِلَيْكَ، لَا مَلْجَأَ وَلَا مَنْجَا مِنْكَ إِلَّا إِلَيْكَ، آمَنْتُ بِكِتَابِكَ الَّذِي أَنْزَلْتَ، وَبِنَبِيِّكَ الَّذِي أَرْسَلْتَ', 'Allāhumma aslamtu nafsī ilayk, wa fawwaḍtu amrī ilayk, wa wajjahtu wajhī ilayk, wa alja''tu ẓahrī ilayk, raghbatan wa rahbatan ilayk, lā malja''a wa lā manjā minka illā ilayk, āmantu bi-kitābika-lladhī anzalt, wa bi-nabiyyika-lladhī arsalt.', 'O Allah, I submit my soul unto You, entrust my affairs unto You, turn my face towards You, and rely upon You, in hope and fear of You. There is no refuge from You except with You. I believe in Your Book which You revealed and Your Prophet whom You sent.', 'Hisn al-Muslim #111 · Bukhari, Muslim'),
+('Restroom', 7, '[بِسْمِ اللَّهِ] اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْخُبُثِ وَالْخَبَائِثِ', '(Bismillāh) Allāhumma innī aʿūdhu bika mina-l-khubthi wa-l-khabā''ith.', '(In the name of Allah) O Allah, I take refuge with You from all evil and evil-doers.', 'Hisn al-Muslim #10 · Bukhari, Muslim'),
+('Restroom', 8, 'غُفْرَانَكَ', 'Ghufrānak.', 'I ask You (Allah) for forgiveness.', 'Hisn al-Muslim #11 · Abu Dawud, Tirmidhi'),
+('Ablution', 9, 'بِسْمِ اللَّهِ', 'Bismillāh.', 'In the name of Allah.', 'Hisn al-Muslim #12'),
+('Ablution', 10, 'أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ', 'Ashhadu an lā ilāha illa-llāhu waḥdahu lā sharīka lah, wa ashhadu anna Muḥammadan ʿabduhu wa rasūluh.', 'I bear witness that none has the right to be worshipped except Allah, alone without partner, and I bear witness that Muhammad is His slave and Messenger.', 'Hisn al-Muslim #13 · Muslim'),
+('Ablution', 11, 'سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ، أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا أَنْتَ، أَسْتَغْفِرُكَ وَأَتُوبُ إِلَيْكَ', 'Subḥānaka-llāhumma wa bi-ḥamdik, ashhadu an lā ilāha illā ant, astaghfiruka wa atūbu ilayk.', 'How perfect You are, O Allah, and I praise You. I bear witness that none has the right to be worshipped except You. I seek Your forgiveness and turn to You in repentance.', 'Hisn al-Muslim #15 · Nasa''i'),
+('Leaving home', 12, 'بِسْمِ اللَّهِ، تَوَكَّلْتُ عَلَى اللَّهِ، وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ', 'Bismillāh, tawakkaltu ʿala-llāh, wa lā ḥawla wa lā quwwata illā billāh.', 'In the name of Allah, I place my trust in Allah, and there is no might nor power except with Allah.', 'Hisn al-Muslim #16 · Abu Dawud, Tirmidhi'),
+('Entering home', 13, 'بِسْمِ اللَّهِ وَلَجْنَا، وَبِسْمِ اللَّهِ خَرَجْنَا، وَعَلَى اللَّهِ رَبِّنَا تَوَكَّلْنَا', 'Bismillāhi walajnā, wa bismillāhi kharajnā, wa ʿalā Rabbinā tawakkalnā.', 'In the name of Allah we enter, and in the name of Allah we leave, and upon our Lord we place our trust.', 'Hisn al-Muslim #18 · Abu Dawud'),
+('Mosque', 14, 'أَعُوذُ بِاللَّهِ الْعَظِيمِ، وَبِوَجْهِهِ الْكَرِيمِ، وَسُلْطَانِهِ الْقَدِيمِ، مِنَ الشَّيْطَانِ الرَّجِيمِ. اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ', 'Aʿūdhu billāhi-l-ʿAẓīm, wa bi-wajhihi-l-karīm, wa sulṭānihi-l-qadīm, mina-sh-shayṭāni-r-rajīm. Allāhumma-ftaḥ lī abwāba raḥmatik.', 'I take refuge with Allah, the Supreme, and with His noble Face and eternal authority, from the accursed devil. O Allah, open the gates of Your mercy for me.', 'Hisn al-Muslim #20 · Abu Dawud'),
+('Mosque', 15, 'بِسْمِ اللَّهِ وَالصَّلَاةُ وَالسَّلَامُ عَلَى رَسُولِ اللَّهِ، اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ، اللَّهُمَّ اعْصِمْنِي مِنَ الشَّيْطَانِ الرَّجِيمِ', 'Bismillāh, wa-ṣ-ṣalātu wa-s-salāmu ʿalā rasūlillāh. Allāhumma innī as''aluka min faḍlik. Allāhumma-ʿṣimnī mina-sh-shayṭāni-r-rajīm.', 'In the name of Allah, and prayers and peace be upon the Messenger of Allah. O Allah, I ask You from Your favor. O Allah, guard me from the accursed devil.', 'Hisn al-Muslim #21 · Ibn Majah'),
+('Call to prayer', 16, 'وَأَنَا أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ وَأَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ، رَضِيتُ بِاللَّهِ رَبًّا، وَبِمُحَمَّدٍ رَسُولًا، وَبِالْإِسْلَامِ دِينًا', 'Wa ana ashhadu an lā ilāha illa-llāhu waḥdahu lā sharīka lah, wa anna Muḥammadan ʿabduhu wa rasūluh, raḍītu billāhi Rabban, wa bi-Muḥammadin rasūlan, wa bil-Islāmi dīnā.', 'And I too bear witness that none has the right to be worshipped except Allah, alone, without partner, and that Muhammad is His slave and Messenger. I am pleased with Allah as Lord, Muhammad as Messenger, and Islam as religion.', 'Hisn al-Muslim #23 · Muslim'),
+('Call to prayer', 17, 'اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ، وَالصَّلَاةِ الْقَائِمَةِ، آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ، وَابْعَثْهُ مَقَامًا مَحْمُودًا الَّذِي وَعَدْتَهُ', 'Allāhumma Rabba hādhihi-d-daʿwati-t-tāmmah, wa-ṣ-ṣalāti-l-qā''imah, āti Muḥammadani-l-wasīlata wa-l-faḍīlah, wa-bʿathhu maqāman maḥmūdani-lladhī waʿadtah.', 'O Allah, Lord of this perfect call and of the prayer about to be established, grant Muhammad the intercession and favor, and raise him to the praised station You have promised him.', 'Hisn al-Muslim #25 · Bukhari'),
+('Dressing', 18, 'الْحَمْدُ لِلَّهِ الَّذِي كَسَانِي هَذَا وَرَزَقَنِيهِ مِنْ غَيْرِ حَوْلٍ مِنِّي وَلَا قُوَّةٍ', 'Alḥamdu lillāhi-lladhī kasānī hādhā wa razaqanīhi min ghayri ḥawlin minnī wa lā quwwah.', 'All praise is for Allah who has clothed me with this garment and provided it for me, with no power nor might from myself.', 'Hisn al-Muslim #5 · Abu Dawud, Tirmidhi'),
+('Beginning of prayer', 19, 'سُبْحَانَكَ اللَّهُمَّ وَبِحَمْدِكَ، وَتَبَارَكَ اسْمُكَ، وَتَعَالَى جَدُّكَ، وَلَا إِلَهَ غَيْرُكَ', 'Subḥānaka-llāhumma wa bi-ḥamdik, wa tabāraka-smuk, wa taʿālā jadduk, wa lā ilāha ghayruk.', 'How perfect You are, O Allah, and I praise You. Blessed is Your name, and exalted is Your majesty, and none has the right to be worshipped except You.', 'Hisn al-Muslim #28 · Abu Dawud, Tirmidhi'),
+('Beginning of prayer', 20, 'اللَّهُمَّ بَاعِدْ بَيْنِي وَبَيْنَ خَطَايَايَ كَمَا بَاعَدْتَ بَيْنَ الْمَشْرِقِ وَالْمَغْرِبِ، اللَّهُمَّ نَقِّنِي مِنْ خَطَايَايَ كَمَا يُنَقَّى الثَّوْبُ الْأَبْيَضُ مِنَ الدَّنَسِ، اللَّهُمَّ اغْسِلْنِي مِنْ خَطَايَايَ بِالثَّلْجِ وَالْمَاءِ وَالْبَرَدِ', 'Allāhumma bāʿid baynī wa bayna khaṭāyāya kamā bāʿadta bayna-l-mashriqi wa-l-maghrib. Allāhumma naqqinī min khaṭāyāya kamā yunaqqa-th-thawbu-l-abyaḍu mina-d-danas. Allāhumma-ghsilnī min khaṭāyāya bi-th-thalji wa-l-mā''i wa-l-barad.', 'O Allah, distance me from my sins as You have distanced the East from the West. O Allah, purify me of my sins as a white garment is purified of filth. O Allah, cleanse me of my sins with snow, water, and hail.', 'Hisn al-Muslim #27 · Bukhari, Muslim');

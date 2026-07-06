@@ -54,9 +54,7 @@ export async function fetchSurahVerses(
 
   let arabic = readLS<Omit<Verse, "translation">[]>(arabicKey);
   if (!arabic) {
-    const res = await fetch(
-      `${API}/quran/verses/uthmani?chapter_number=${surahId}`,
-    );
+    const res = await fetch(`${API}/quran/verses/uthmani?chapter_number=${surahId}`);
     if (!res.ok) throw new Error("Could not load surah");
     const json = (await res.json()) as {
       verses: { id: number; verse_key: string; text_uthmani: string }[];
@@ -66,9 +64,11 @@ export async function fetchSurahVerses(
       `${API}/verses/by_chapter/${surahId}?language=en&words=false&per_page=300&fields=page_number`,
     );
     const meta = metaRes.ok
-      ? ((await metaRes.json()) as {
-          verses: { id: number; verse_number: number; verse_key: string; page_number: number }[];
-        }).verses
+      ? (
+          (await metaRes.json()) as {
+            verses: { id: number; verse_number: number; verse_key: string; page_number: number }[];
+          }
+        ).verses
       : [];
     const metaByKey = new Map(meta.map((m) => [m.verse_key, m]));
     arabic = json.verses.map((v) => {
@@ -143,20 +143,18 @@ export async function upsertReadingState(input: {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
   if (!uid) throw new Error("Not authenticated");
-  const { error } = await supabase
-    .from("quran_reading_state")
-    .upsert(
-      {
-        user_id: uid,
-        habit_id: input.habit_id,
-        surah: input.surah,
-        ayah: input.ayah,
-        show_translation: input.show_translation ?? true,
-        view_mode: input.view_mode ?? "verse",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,habit_id" },
-    );
+  const { error } = await supabase.from("quran_reading_state").upsert(
+    {
+      user_id: uid,
+      habit_id: input.habit_id,
+      surah: input.surah,
+      ayah: input.ayah,
+      show_translation: input.show_translation ?? true,
+      view_mode: input.view_mode ?? "verse",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,habit_id" },
+  );
   if (error) throw error;
 }
 
@@ -191,4 +189,41 @@ export function isQuranHabit(h: {
   if (h.subcategory === "quran") return true;
   if (h.unit === "pages" || h.unit === "verses" || h.unit === "minutes") return true;
   return /qur'?an/i.test(h.name ?? "");
+}
+
+// ---------- Fixed-surah (locked) readers ----------
+
+/**
+ * A handful of Qur'an habits are tied to specific, fixed surahs rather than
+ * open-ended reading (e.g. "recite Al-Kahf on Fridays"). Those are boolean
+ * habits — "done" is a manual checkbox tap, not a page/verse target — but
+ * the user should still be able to open the actual reader (rather than a
+ * plain checkbox) and have how much they read tracked for trends later.
+ * `fromAyah`/`toAyah` restrict a segment to part of a surah (used for
+ * Ayat al-Kursi, which is one ayah inside Al-Baqarah, not a whole surah).
+ */
+export type LockedSegment = {
+  surah: number;
+  fromAyah?: number;
+  toAyah?: number;
+  label?: string;
+};
+
+const FIXED_SURAH_READERS: Record<string, LockedSegment[]> = {
+  "Surah Al-Kahf": [{ surah: 18 }],
+  "Surah Al-Mulk & As-Sajdah (night)": [{ surah: 67 }, { surah: 32 }],
+  "Protective Surahs Before Sleep": [
+    { surah: 2, fromAyah: 255, toAyah: 255, label: "Ayat al-Kursi" },
+    { surah: 112 },
+    { surah: 113 },
+    { surah: 114 },
+  ],
+};
+
+export function getLockedSequence(h: { name?: string | null }): LockedSegment[] | null {
+  return FIXED_SURAH_READERS[h.name ?? ""] ?? null;
+}
+
+export function hasFixedReader(h: { type: string; name?: string | null }): boolean {
+  return h.type === "boolean" && getLockedSequence(h) !== null;
 }
