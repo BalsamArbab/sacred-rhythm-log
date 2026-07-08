@@ -80,9 +80,12 @@ function SplashPage() {
         ) : null}
       </div>
 
-      <p className="mt-16 text-[11px] text-muted-foreground/50 uppercase tracking-[0.2em]">
-        tap anywhere to continue
-      </p>
+      <div className="mt-16 text-center space-y-1">
+        <p className="text-sm text-muted-foreground/70 font-arabic">بِسْمِ اللَّهِ</p>
+        <p className="text-[11px] text-muted-foreground/50 uppercase tracking-[0.2em]">
+          tap to begin
+        </p>
+      </div>
     </div>
   );
 }
