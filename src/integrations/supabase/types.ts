@@ -61,6 +61,39 @@ export type Database = {
           },
         ]
       }
+      daily_duas: {
+        Row: {
+          arabic: string
+          category: string
+          created_at: string
+          id: string
+          sort_order: number
+          source: string | null
+          translation: string | null
+          transliteration: string | null
+        }
+        Insert: {
+          arabic: string
+          category: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          source?: string | null
+          translation?: string | null
+          transliteration?: string | null
+        }
+        Update: {
+          arabic?: string
+          category?: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          source?: string | null
+          translation?: string | null
+          transliteration?: string | null
+        }
+        Relationships: []
+      }
       habit_checklist_items: {
         Row: {
           habit_id: string
