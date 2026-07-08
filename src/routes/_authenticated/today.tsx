@@ -48,19 +48,6 @@ function TodayPage() {
   });
   const hijriLabel = formatHijriDate(now);
 
-  let completedCount = 0;
-  const overallPct =
-    habits.length === 0
-      ? 0
-      : Math.round(
-          habits.reduce((sum, h) => {
-            const log = logs.find((l) => l.habit_id === h.id);
-            const pct = habitCompletionPct(h, log);
-            if (pct >= 100) completedCount += 1;
-            return sum + pct;
-          }, 0) / habits.length,
-        );
-
   return (
     <AppShell>
       <header className="mb-5 flex items-start justify-between gap-4">
@@ -70,10 +57,6 @@ function TodayPage() {
           <p className="text-[11px] text-muted-foreground mt-0.5">{hijriLabel}</p>
         </div>
       </header>
-
-      <DailyDuaCard />
-
-      <TodayProgressRow pct={overallPct} completed={completedCount} total={habits.length} />
 
       <div className="mt-6 space-y-4">
         {habitsQ.isLoading && (
@@ -85,6 +68,10 @@ function TodayPage() {
           const log = logs.find((l) => l.habit_id === h.id);
           return <HabitCard key={h.id} habit={h} log={log} date={today} today={now} />;
         })}
+      </div>
+
+      <div className="mt-6">
+        <DailyDuaCard />
       </div>
     </AppShell>
   );
@@ -120,67 +107,6 @@ function DailyDuaCard() {
         <p className="text-sm text-foreground/80 leading-relaxed">{dua.translation}</p>
       )}
       {dua.source && <p className="text-[11px] text-muted-foreground">{dua.source}</p>}
-    </NeuCard>
-  );
-}
-
-function TodayProgressRow({
-  pct,
-  completed,
-  total,
-}: {
-  pct: number;
-  completed: number;
-  total: number;
-}) {
-  const r = 26;
-  const c = 2 * Math.PI * r;
-  const dash = c * (pct / 100);
-  return (
-    <NeuCard className="flex items-center gap-4 py-4">
-      <div className="relative neu-pressed rounded-full p-1.5 shrink-0">
-        <svg width="64" height="64" viewBox="0 0 64 64">
-          <circle
-            cx="32"
-            cy="32"
-            r={r}
-            fill="none"
-            stroke="var(--emerald-soft)"
-            strokeWidth="6"
-            opacity="0.5"
-          />
-          <circle
-            cx="32"
-            cy="32"
-            r={r}
-            fill="none"
-            stroke="var(--emerald)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${c}`}
-            transform="rotate(-90 32 32)"
-            style={{ transition: "stroke-dasharray 400ms ease" }}
-          />
-          <text
-            x="32"
-            y="30"
-            textAnchor="middle"
-            className="fill-foreground"
-            style={{ fontSize: 13, fontWeight: 700 }}
-          >
-            {pct}%
-          </text>
-          <text
-            x="32"
-            y="41"
-            textAnchor="middle"
-            style={{ fontSize: 8.5, fontWeight: 500, fill: "var(--muted-foreground)" }}
-          >
-            {completed} of {total}
-          </text>
-        </svg>
-      </div>
-      <div className="text-sm font-medium text-muted-foreground">habits done today</div>
     </NeuCard>
   );
 }
@@ -358,12 +284,6 @@ function HabitCard({
   );
 }
 
-/**
- * Collapsed Qur'an habit row: tap to reveal two options — open the actual
- * reader (which tracks pages/verses/minutes itself as you read), or log
- * something you read outside the app. No standalone +/- stepper anymore,
- * since that duplicated exactly what the reader already tracks.
- */
 function QuranHabitControl({
   habit,
   log,
@@ -459,10 +379,6 @@ function QuranHabitControl({
   );
 }
 
-/**
- * Prayer-style button: fills with the accent color when checked
- * (no checkmark icon), uses neumorphic raised state when unchecked.
- */
 function PrayerFillButton({
   checked,
   label,
