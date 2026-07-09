@@ -3,10 +3,7 @@ import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 
 export function NeuCard({ className, children, ...rest }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn("neu-raised rounded-3xl p-5", className)}
-      {...rest}
-    >
+    <div className={cn("neu-raised rounded-3xl p-5", className)} {...rest}>
       {children}
     </div>
   );
@@ -90,9 +87,7 @@ export function NeuToggle({
       aria-label={label}
       className={cn(
         "h-14 w-14 rounded-2xl flex items-center justify-center transition-all duration-200",
-        checked
-          ? "neu-pressed text-[color:var(--emerald)]"
-          : "neu-raised-sm text-muted-foreground",
+        checked ? "neu-pressed text-[color:var(--emerald)]" : "neu-raised-sm text-muted-foreground",
         className,
       )}
     >

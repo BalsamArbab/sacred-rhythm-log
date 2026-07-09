@@ -41,8 +41,5 @@ export function parseAdhkarProgress(raw: unknown): AdhkarProgress {
 }
 
 export function countCompletedAdhkar(items: AdhkarItem[], progress: AdhkarProgress): number {
-  return items.reduce(
-    (n, it) => n + ((progress[it.id] ?? 0) >= it.repeat_count ? 1 : 0),
-    0,
-  );
+  return items.reduce((n, it) => n + ((progress[it.id] ?? 0) >= it.repeat_count ? 1 : 0), 0);
 }

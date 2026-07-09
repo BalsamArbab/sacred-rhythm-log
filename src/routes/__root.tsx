@@ -80,7 +80,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Daily Rituals — Islamic habit tracker" },
-      { name: "description", content: "Track prayer, Quran, and adhkar with a calm daily routine. Build steady habits, in shā Allāh." },
+      {
+        name: "description",
+        content:
+          "Track prayer, Quran, and adhkar with a calm daily routine. Build steady habits, in shā Allāh.",
+      },
       { name: "theme-color", content: "#e8e9ee" },
       { property: "og:title", content: "Daily Rituals" },
       { property: "og:description", content: "A calm space to track prayer, Quran, and adhkar." },

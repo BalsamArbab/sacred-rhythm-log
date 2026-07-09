@@ -73,9 +73,7 @@ function SplashPage() {
             {dua.translation && (
               <p className="text-sm text-foreground/80 leading-relaxed">{dua.translation}</p>
             )}
-            {dua.source && (
-              <p className="text-[11px] text-muted-foreground">{dua.source}</p>
-            )}
+            {dua.source && <p className="text-[11px] text-muted-foreground">{dua.source}</p>}
           </>
         ) : null}
       </div>

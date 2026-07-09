@@ -40,9 +40,7 @@ function TrendsPage() {
   return (
     <AppShell>
       <header className="mb-7">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-          Last 12 weeks
-        </p>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Last 12 weeks</p>
         <h1 className="text-3xl font-semibold mt-1">Trends</h1>
       </header>
 
@@ -136,9 +134,7 @@ function HabitTrend({ habit, logs }: { habit: HabitWithItems; logs: HabitLog[] }
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="neu-pressed-sm rounded-2xl p-3 text-center">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className="text-lg font-semibold mt-0.5">{value}</div>
       {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
     </div>
@@ -156,9 +152,7 @@ function Delta({ label, value }: { label: string; value: number }) {
       : "text-muted-foreground";
   return (
     <div className="neu-pressed-sm rounded-2xl p-3 text-center">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className={`text-lg font-semibold mt-0.5 inline-flex items-center gap-1 ${color}`}>
         <Icon className="h-4 w-4" />
         {positive && "+"}
@@ -188,8 +182,7 @@ function Heatmap({ daily }: { daily: { date: string; pct: number }[] }) {
             {Array.from({ length: 7 }).map((_, ri) => {
               const cell = col[ri];
               const pct = cell?.pct ?? 0;
-              const op =
-                pct === 0 ? 0.12 : pct < 34 ? 0.35 : pct < 67 ? 0.6 : pct < 100 ? 0.8 : 1;
+              const op = pct === 0 ? 0.12 : pct < 34 ? 0.35 : pct < 67 ? 0.6 : pct < 100 ? 0.8 : 1;
               return (
                 <div
                   key={ri}

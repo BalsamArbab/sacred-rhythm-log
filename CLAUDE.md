@@ -13,32 +13,47 @@ Qur'an reading, adhkar/dhikr, sunnah fasting, etc). Repo:
 Start/Router, Tailwind, a neumorphic design system (`NeuCard`/`NeuButton` in
 `src/components/neu.tsx`), and Supabase (Postgres + Auth) as the backend.
 
-## Backend: staying on Supabase, dropping Lovable
+## Backend: migrated off Lovable Cloud to an owned Supabase project (2026-07-08)
 
-The project was originally built and hosted through Lovable, which
-auto-provisioned and managed the Supabase project behind the scenes. The
-owner (Balsam) wants to stop using Lovable's editor and manage everything
-directly through Claude Code + GitHub going forward — but explicitly wants
-to **keep Supabase** as the database/auth backend (not replace it). Reasoning
-discussed: replacing Supabase would mean rewriting the entire data layer and
-risking existing habit/log history, for no real benefit — Supabase itself
-was never the thing they wanted to leave, Lovable's editor was.
+The project was originally built through Lovable, which enabled **Lovable
+Cloud** — Lovable's own fully-managed Supabase instance. Turns out Lovable
+Cloud projects are owned and operated by Lovable internally and can **never**
+be accessed directly: no dashboard access, no service-role key, no CLI link,
+regardless of billing tier. (Confirmed via Supabase's own troubleshooting
+docs: "Can't Access Supabase Project When Using Lovable Cloud.") So the
+original plan of "get admin access to the project Lovable created" was a
+dead end — there was no path to it.
 
-Practical follow-ups this implies (not yet done as of this writing):
-- Get direct Supabase dashboard access (not routed through Lovable) — find
-  the Supabase project that Lovable created for this app and get owner/admin
-  access to it directly.
-- Install the Supabase CLI locally and `supabase link` it to that project so
-  migrations can be applied with `supabase db push` instead of pasting SQL
-  into the dashboard SQL Editor by hand.
-- Consider stripping Lovable-specific integration code once fully migrated
-  off it: `src/integrations/lovable/index.ts`, `src/lib/lovable-error-reporting.ts`,
-  the `@lovable.dev/cloud-auth-js` dependency, and the Lovable banner in
-  `AGENTS.md` — only do this after confirming auth/deploy still works
-  without Lovable in the loop (Lovable may currently also be handling
-  hosting/deploy; that needs its own replacement, e.g. Cloudflare via the
-  `wrangler.json`/nitro config already in the repo, before Lovable is fully
-  dropped).
+The actual fix: created a new, separate Supabase project
+(`rfuijwafgpmgutbmgbtl`) under Balsam's own account, and rebuilt the schema
+there by concatenating every file in `supabase/migrations/` (chronological
+order, one duplicate `daily_duas` migration skipped) into a single
+transaction-wrapped script and running it once in the new project's SQL
+Editor. `.env` and `supabase/config.toml` now point at this new project.
+
+**Old data was not migrated.** The Lovable Cloud project only ever had test
+accounts used to check what pages looked like — no real habit-tracking
+history existed worth preserving, so this was a clean cutover rather than a
+data migration. If that's ever not true in the future (real usage
+accumulates on the wrong project again), the migration path is: export each
+user-data table as CSV from Lovable's Cloud → Database → Table view, remap
+the `user_id` column from the old account's ID to the new account's ID
+(auth IDs differ across projects), then import in dependency order (`habits`
+before `habit_checklist_items`/`habit_logs`/`quran_reading_state`). Lovable's
+own docs cover this end-to-end: docs.lovable.dev/tips-tricks/external-deployment-hosting.
+
+Remaining follow-up:
+- Install the Supabase CLI locally and `supabase link --project-ref
+  rfuijwafgpmgutbmgbtl` so future migrations can be applied with
+  `supabase db push` instead of pasting SQL into the dashboard by hand.
+- Consider stripping Lovable-specific integration code now that the backend
+  no longer depends on it: `src/integrations/lovable/index.ts`,
+  `src/lib/lovable-error-reporting.ts`, the `@lovable.dev/cloud-auth-js`
+  dependency, and the Lovable banner in `AGENTS.md` — only do this after
+  confirming hosting/deploy still works without Lovable in the loop (Lovable
+  may currently also be handling hosting/deploy; that needs its own
+  replacement, e.g. Cloudflare via the `wrangler.json`/nitro config already
+  in the repo, before Lovable is fully dropped).
 
 ## Today page work completed in this session
 

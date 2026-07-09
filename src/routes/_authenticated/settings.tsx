@@ -12,6 +12,11 @@ import {
   archiveHabit,
   fetchProfile,
   updateDailyGoal,
+  updateTracksMenstruation,
+  fetchActiveCycle,
+  startPeriod,
+  endActiveCycle,
+  todayStr,
   fetchHabitTemplates,
   addHabitFromTemplate,
   type HabitWithItems,
@@ -32,6 +37,26 @@ function SettingsPage() {
   const templatesQ = useQuery({ queryKey: ["habit-templates"], queryFn: fetchHabitTemplates });
   const profileQ = useQuery({ queryKey: ["profile"], queryFn: fetchProfile });
   const goal = profileQ.data?.daily_goal_pct ?? 80;
+  const tracksMenstruation = !!profileQ.data?.tracks_menstruation;
+  const today = todayStr();
+  const cycleQ = useQuery({
+    queryKey: ["active-cycle", today],
+    queryFn: () => fetchActiveCycle(today),
+    enabled: tracksMenstruation,
+  });
+
+  const trackMut = useMutation({
+    mutationFn: updateTracksMenstruation,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
+  });
+  const startPeriodMut = useMutation({
+    mutationFn: () => startPeriod(today),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["active-cycle", today] }),
+  });
+  const endPeriodMut = useMutation({
+    mutationFn: (cycleId: string) => endActiveCycle(cycleId, today),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["active-cycle", today] }),
+  });
 
   const addFromTemplate = useMutation({
     mutationFn: addHabitFromTemplate,
@@ -94,7 +119,10 @@ function SettingsPage() {
         target: form.target ? Number(form.target) : undefined,
         checklist_labels:
           form.type === "checklist"
-            ? form.checklist.split(",").map((s) => s.trim()).filter(Boolean)
+            ? form.checklist
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
             : undefined,
       }),
     onSuccess: () => {
@@ -116,7 +144,10 @@ function SettingsPage() {
         target: form.target ? Number(form.target) : undefined,
         checklist_labels:
           form.type === "checklist"
-            ? form.checklist.split(",").map((s) => s.trim()).filter(Boolean)
+            ? form.checklist
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
             : undefined,
       }),
     onSuccess: () => {
@@ -146,9 +177,7 @@ function SettingsPage() {
   return (
     <AppShell>
       <header className="mb-7">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-          Manage
-        </p>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Manage</p>
         <h1 className="text-3xl font-semibold mt-1">Settings</h1>
       </header>
 
@@ -170,11 +199,10 @@ function SettingsPage() {
         </div>
         <NeuCard className="space-y-3">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            How much of your daily routine counts as a "good day." The Today ring
-            fills up as you get closer to this threshold — at {goal}%, hitting{" "}
-            {goal}% of your combined habit work fills the ring completely. Set it
-            lower for a more forgiving target on busy days; set to 100% to require
-            everything.
+            How much of your daily routine counts as a "good day." The Today ring fills up as you
+            get closer to this threshold — at {goal}%, hitting {goal}% of your combined habit work
+            fills the ring completely. Set it lower for a more forgiving target on busy days; set to
+            100% to require everything.
           </p>
           <input
             type="range"
@@ -194,9 +222,54 @@ function SettingsPage() {
         </NeuCard>
       </section>
 
+      <section className="mb-8 space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground px-1">
+          Menstruation tracking
+        </h2>
+        <NeuCard className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="pr-2">
+              <p className="text-sm font-medium">Track menstruation</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Adds a "paused" option to prayer buttons on days you're on your period —
+                menstruating women are excused from prayer, not required to make it up.
+              </p>
+            </div>
+            <Switch
+              checked={tracksMenstruation}
+              onCheckedChange={(v) => trackMut.mutate(v)}
+              disabled={trackMut.isPending}
+              aria-label="Track menstruation"
+              className="shrink-0"
+            />
+          </div>
+
+          {tracksMenstruation && (
+            <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+              <div className="pr-2">
+                <p className="text-sm font-medium">Currently on my period</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {cycleQ.data
+                    ? `Started ${cycleQ.data.start_date}. Prayer buttons default to paused until you turn this off.`
+                    : "Turn on when your period starts to pause today's prayer buttons."}
+                </p>
+              </div>
+              <Switch
+                checked={!!cycleQ.data}
+                onCheckedChange={(v) => {
+                  if (v) startPeriodMut.mutate();
+                  else if (cycleQ.data) endPeriodMut.mutate(cycleQ.data.id);
+                }}
+                disabled={startPeriodMut.isPending || endPeriodMut.isPending || cycleQ.isLoading}
+                aria-label="Currently on my period"
+                className="shrink-0"
+              />
+            </div>
+          )}
+        </NeuCard>
+      </section>
 
       <section className="space-y-4">
-
         <div className="flex items-center justify-between px-1">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Habits
@@ -354,9 +427,7 @@ function SettingsPage() {
                       <div className="flex items-baseline gap-3">
                         <div className="font-semibold">{h.name}</div>
                         {h.name_ar && (
-                          <div className="font-arabic text-[color:var(--emerald)]">
-                            {h.name_ar}
-                          </div>
+                          <div className="font-arabic text-[color:var(--emerald)]">{h.name_ar}</div>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground capitalize">
@@ -366,7 +437,11 @@ function SettingsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <NeuButton size="icon" onClick={() => startEdit(h)} aria-label={`Edit ${h.name}`}>
+                      <NeuButton
+                        size="icon"
+                        onClick={() => startEdit(h)}
+                        aria-label={`Edit ${h.name}`}
+                      >
                         <Pencil className="h-4 w-4" />
                       </NeuButton>
                       <Switch
@@ -379,13 +454,15 @@ function SettingsPage() {
                         aria-label={`Disable ${h.name}`}
                       />
                     </div>
-
                   </NeuCard>
                 );
               }
               const t = row.template;
               return (
-                <NeuCard key={`t-${t.id}`} className="flex items-center justify-between py-4 opacity-70">
+                <NeuCard
+                  key={`t-${t.id}`}
+                  className="flex items-center justify-between py-4 opacity-70"
+                >
                   <div className="min-w-0">
                     <div className="flex items-baseline gap-3">
                       <div className="font-semibold">{t.name}</div>

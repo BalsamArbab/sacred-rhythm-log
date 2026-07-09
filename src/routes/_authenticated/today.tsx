@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { NeuCard, NeuButton } from "@/components/neu";
 import { AdhkarReader } from "@/components/adhkar-reader";
 import { QuranReader } from "@/components/quran-reader";
+import { PrayerBubble } from "@/components/prayer-bubble";
 import { isQuranHabit, getLockedSequence, hasFixedReader } from "@/lib/quran";
 import { fetchDailyDuas, pickDailyDua } from "@/lib/duas";
 import { formatHijriDate } from "@/lib/recurrence";
@@ -13,11 +14,19 @@ import { cn } from "@/lib/utils";
 import {
   fetchHabits,
   fetchLogsForDate,
+  fetchProfile,
+  fetchActiveCycle,
   upsertLog,
   todayStr,
   habitCompletionPct,
-  getCompletedIds,
   displayHabitName,
+  effectiveItemState,
+  getItemState,
+  withItemState,
+  effectiveBooleanState,
+  getBooleanState,
+  nextPrayerState,
+  prayerStateCounts,
   type HabitWithItems,
   type HabitLog,
 } from "@/lib/habits";
@@ -35,6 +44,16 @@ function TodayPage() {
     queryKey: ["logs", today],
     queryFn: () => fetchLogsForDate(today),
   });
+  const profileQ = useQuery({ queryKey: ["profile"], queryFn: fetchProfile });
+  const tracksMenstruation = !!profileQ.data?.tracks_menstruation;
+  const cycleQ = useQuery({
+    queryKey: ["active-cycle", today],
+    queryFn: () => fetchActiveCycle(today),
+    enabled: tracksMenstruation,
+  });
+  // Whether today qualifies for the menstruation "paused" prayer state at
+  // all. Still gated per-habit by menstruation_behavior === "always_pause".
+  const pauseEligible = tracksMenstruation && !!cycleQ.data;
 
   const habits = (habitsQ.data ?? []).filter((h) =>
     isHabitDueOn(h.recurrence_type ?? "daily", h.recurrence_data, now),
@@ -66,7 +85,16 @@ function TodayPage() {
         )}
         {habits.map((h) => {
           const log = logs.find((l) => l.habit_id === h.id);
-          return <HabitCard key={h.id} habit={h} log={log} date={today} today={now} />;
+          return (
+            <HabitCard
+              key={h.id}
+              habit={h}
+              log={log}
+              date={today}
+              today={now}
+              pauseEligible={pauseEligible}
+            />
+          );
         })}
       </div>
 
@@ -116,11 +144,13 @@ function HabitCard({
   log,
   date,
   today,
+  pauseEligible,
 }: {
   habit: HabitWithItems;
   log: HabitLog | undefined;
   date: string;
   today: Date;
+  pauseEligible: boolean;
 }) {
   const qc = useQueryClient();
   const [readerOpen, setReaderOpen] = useState(false);
@@ -135,6 +165,12 @@ function HabitCard({
   const isQuran = isQuranHabit(habit);
   const fixedReader = hasFixedReader(habit) ? getLockedSequence(habit) : null;
   const displayName = displayHabitName(habit, today);
+  // Only prayer-subcategory habits ever offer the "paused" state, and only
+  // when a period is actually active today — see the migration backfilling
+  // menstruation_behavior = 'always_pause' on Prayer, Sunnah Rawatib, Witr,
+  // Tahajjud, and Duha.
+  const canPause = habit.menstruation_behavior === "always_pause" && pauseEligible;
+  const isPrayerHabit = habit.subcategory === "prayer";
 
   return (
     <NeuCard className="space-y-4">
@@ -170,20 +206,37 @@ function HabitCard({
               Read {displayName}
             </NeuButton>
           )}
-          <PrayerFillButton
-            checked={!!log?.completed_bool}
-            label={displayName}
-            fullWidth
-            onToggle={() =>
-              mut.mutate({
-                habit_id: habit.id,
-                log_date: date,
-                completed_bool: !log?.completed_bool,
-              })
-            }
-          >
-            {log?.completed_bool ? "Done" : "Mark complete"}
-          </PrayerFillButton>
+          {isPrayerHabit ? (
+            <PrayerBubble
+              fullWidth
+              label={displayName}
+              state={effectiveBooleanState(log, canPause)}
+              onCycle={() => {
+                const next = nextPrayerState(getBooleanState(log), canPause);
+                mut.mutate({
+                  habit_id: habit.id,
+                  log_date: date,
+                  value_num: next,
+                  completed_bool: prayerStateCounts(next),
+                });
+              }}
+            />
+          ) : (
+            <PrayerFillButton
+              checked={!!log?.completed_bool}
+              label={displayName}
+              fullWidth
+              onToggle={() =>
+                mut.mutate({
+                  habit_id: habit.id,
+                  log_date: date,
+                  completed_bool: !log?.completed_bool,
+                })
+              }
+            >
+              {log?.completed_bool ? "Done" : "Mark complete"}
+            </PrayerFillButton>
+          )}
           {fixedReader && (
             <QuranReader
               habit={habit}
@@ -254,30 +307,25 @@ function HabitCard({
 
       {habit.type === "checklist" && (
         <div className="grid grid-cols-5 gap-2">
-          {habit.checklist.map((item) => {
-            const completedIds = getCompletedIds(log);
-            const done = completedIds.includes(item.id);
-            return (
-              <div key={item.id} className="flex flex-col items-center gap-1.5">
-                <PrayerFillButton
-                  checked={done}
-                  label={item.label}
-                  onToggle={() => {
-                    const next = done
-                      ? completedIds.filter((id) => id !== item.id)
-                      : [...completedIds, item.id];
-                    mut.mutate({
-                      habit_id: habit.id,
-                      log_date: date,
-                      completed_items: next,
-                      completed_bool: next.length === habit.checklist.length,
-                    });
-                  }}
-                />
-                <span className="text-[10px] text-muted-foreground">{item.label}</span>
-              </div>
-            );
-          })}
+          {habit.checklist.map((item) => (
+            <div key={item.id} className="flex flex-col items-center gap-1.5">
+              <PrayerBubble
+                label={item.label}
+                state={effectiveItemState(log, item.id, canPause)}
+                onCycle={() => {
+                  const next = nextPrayerState(getItemState(log, item.id), canPause);
+                  const items = withItemState(log, item.id, next);
+                  mut.mutate({
+                    habit_id: habit.id,
+                    log_date: date,
+                    completed_items: items,
+                    completed_bool: Object.keys(items).length === habit.checklist.length,
+                  });
+                }}
+              />
+              <span className="text-[10px] text-muted-foreground">{item.label}</span>
+            </div>
+          ))}
         </div>
       )}
     </NeuCard>

@@ -5,13 +5,15 @@ export async function fetchProfile(): Promise<{
   id: string;
   display_name: string | null;
   daily_goal_pct: number;
+  tracks_menstruation: boolean;
+  madhab: string | null;
 } | null> {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
   if (!uid) return null;
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, daily_goal_pct")
+    .select("id, display_name, daily_goal_pct, tracks_menstruation, madhab")
     .eq("id", uid)
     .maybeSingle();
   if (error) throw error;
@@ -27,6 +29,60 @@ export async function updateDailyGoal(pct: number) {
     .from("profiles")
     .update({ daily_goal_pct: clamped })
     .eq("id", uid);
+  if (error) throw error;
+}
+
+export async function updateTracksMenstruation(tracks: boolean) {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("profiles")
+    .update({ tracks_menstruation: tracks })
+    .eq("id", uid);
+  if (error) throw error;
+}
+
+export type MenstrualCycleLog = {
+  id: string;
+  user_id: string;
+  start_date: string;
+  end_date: string | null;
+};
+
+/** The open-or-covering cycle log for a given date, if any (start_date <= date <= end_date, or still ongoing). */
+export async function fetchActiveCycle(date: string): Promise<MenstrualCycleLog | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) return null;
+  const { data, error } = await supabase
+    .from("menstrual_cycle_logs")
+    .select("*")
+    .eq("user_id", uid)
+    .lte("start_date", date)
+    .or(`end_date.is.null,end_date.gte.${date}`)
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function startPeriod(date: string) {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("menstrual_cycle_logs")
+    .insert({ user_id: uid, start_date: date });
+  if (error) throw error;
+}
+
+export async function endActiveCycle(cycleId: string, date: string) {
+  const { error } = await supabase
+    .from("menstrual_cycle_logs")
+    .update({ end_date: date, updated_at: new Date().toISOString() })
+    .eq("id", cycleId);
   if (error) throw error;
 }
 
@@ -100,9 +156,103 @@ export type HabitLog = {
 
 export type HabitWithItems = HabitRow & { checklist: ChecklistItem[] };
 
+/**
+ * Prayer-button state, used both for checklist items (Prayer, Sunnah
+ * Rawatib — one per item, stored in habit_logs.completed_items as
+ * Record<string, PrayerState>) and boolean prayer habits (Witr, Tahajjud,
+ * Duha — stored in habit_logs.value_num). 0 means "untouched"; a tap cycles
+ * through the others.
+ */
+export type PrayerState = 0 | 1 | 2 | 3 | 4;
+export const PRAYER_ON_TIME: PrayerState = 1;
+export const PRAYER_LATE: PrayerState = 2;
+export const PRAYER_MISSED: PrayerState = 3;
+export const PRAYER_PAUSED: PrayerState = 4;
+
+function toPrayerState(v: unknown): PrayerState {
+  return v === 1 || v === 2 || v === 3 || v === 4 ? (v as PrayerState) : 0;
+}
+
+/** Reads completed_items as a { itemId: PrayerState } map, transparently upgrading the old string[] "done ids" format (treated as on-time). */
+function itemStatesMap(log: HabitLog | undefined): Record<string, PrayerState> {
+  if (!log) return {};
+  const raw = log.completed_items;
+  if (Array.isArray(raw)) {
+    const map: Record<string, PrayerState> = {};
+    for (const id of raw as string[]) map[id] = PRAYER_ON_TIME;
+    return map;
+  }
+  if (raw && typeof raw === "object") {
+    const map: Record<string, PrayerState> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) map[k] = toPrayerState(v);
+    return map;
+  }
+  return {};
+}
+
+export function getItemState(log: HabitLog | undefined, itemId: string): PrayerState {
+  return itemStatesMap(log)[itemId] ?? 0;
+}
+
+/** Item state to actually render: falls back to "paused" when pausing is in effect and nothing's been logged yet, without writing anything until the user interacts. */
+export function effectiveItemState(
+  log: HabitLog | undefined,
+  itemId: string,
+  pauseEligible: boolean,
+): PrayerState {
+  const stored = getItemState(log, itemId);
+  if (stored !== 0) return stored;
+  return pauseEligible ? PRAYER_PAUSED : 0;
+}
+
+/** Returns the full updated map to send back through upsertLog after cycling one item's state. */
+export function withItemState(
+  log: HabitLog | undefined,
+  itemId: string,
+  state: PrayerState,
+): Record<string, PrayerState> {
+  const next = { ...itemStatesMap(log) };
+  if (state === 0) delete next[itemId];
+  else next[itemId] = state;
+  return next;
+}
+
+export function getBooleanState(log: HabitLog | undefined): PrayerState {
+  return toPrayerState(log?.value_num);
+}
+
+export function effectiveBooleanState(
+  log: HabitLog | undefined,
+  pauseEligible: boolean,
+): PrayerState {
+  const stored = getBooleanState(log);
+  if (stored !== 0) return stored;
+  return pauseEligible ? PRAYER_PAUSED : 0;
+}
+
+/** A state counts toward completion (pct/streaks) unless it's untouched or explicitly missed. */
+export function prayerStateCounts(state: PrayerState): boolean {
+  return state === PRAYER_ON_TIME || state === PRAYER_LATE || state === PRAYER_PAUSED;
+}
+
+/** Advances a prayer-button state one tap. When pause-eligible, the cycle loops through paused instead of resting on "untouched". */
+export function nextPrayerState(current: PrayerState, pauseEligible: boolean): PrayerState {
+  if (pauseEligible) {
+    if (current === PRAYER_PAUSED || current === 0) return PRAYER_ON_TIME;
+    if (current === PRAYER_ON_TIME) return PRAYER_LATE;
+    if (current === PRAYER_LATE) return PRAYER_MISSED;
+    return PRAYER_PAUSED; // missed -> paused
+  }
+  if (current === 0) return PRAYER_ON_TIME;
+  if (current === PRAYER_ON_TIME) return PRAYER_LATE;
+  if (current === PRAYER_LATE) return PRAYER_MISSED;
+  return 0; // missed (or stray paused) -> untouched
+}
+
 export function getCompletedIds(log: HabitLog | undefined): string[] {
-  if (!log) return [];
-  return Array.isArray(log.completed_items) ? (log.completed_items as string[]) : [];
+  return Object.entries(itemStatesMap(log))
+    .filter(([, state]) => prayerStateCounts(state))
+    .map(([id]) => id);
 }
 
 export function todayStr(d = new Date()): string {
@@ -154,7 +304,7 @@ export async function upsertLog(input: {
   habit_id: string;
   log_date: string;
   value_num?: number;
-  completed_items?: string[];
+  completed_items?: string[] | Record<string, number>;
   completed_bool?: boolean;
 }) {
   const { data: userData } = await supabase.auth.getUser();
