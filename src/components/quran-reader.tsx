@@ -541,35 +541,68 @@ function PageView({
   trackingMode: "pages" | "verses" | "minutes";
   onCountUp: () => void;
 }) {
+  // Group verses by real mushaf page number so the layout mirrors an actual
+  // printed page break, rather than one long undifferentiated scroll.
+  const pages = useMemo(() => {
+    const map = new Map<number, Verse[]>();
+    for (const v of verses) {
+      const key = v.page_number || 0;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(v);
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]);
+  }, [verses]);
+
   return (
-    <div className="p-5 space-y-4">
-      {verses.map((v) => {
-        const isActive = v.verse_number === activeVerse;
-        return (
-          <button
-            key={v.id}
-            onClick={() => {
-              onPickVerse(v.verse_number);
-              if (trackingMode === "verses") onCountUp();
-            }}
-            className={cn(
-              "w-full text-left rounded-2xl p-4 transition-all",
-              isActive ? "neu-pressed-sm" : "neu-raised-sm",
-            )}
-          >
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
-              <span>{v.verse_key}</span>
-              {v.page_number > 0 && <span>p. {v.page_number}</span>}
+    <div className="p-5 space-y-8">
+      {pages.map(([pageNum, pageVerses]) => (
+        <div key={pageNum}>
+          {pageNum > 0 && (
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground text-center mb-3">
+              Page {pageNum}
             </div>
-            <p dir="rtl" lang="ar" className="font-arabic text-xl leading-[2] text-foreground">
-              {v.text_uthmani}
-            </p>
-            {showTranslation && v.translation && (
-              <p className="text-xs text-foreground/70 leading-relaxed mt-2">{v.translation}</p>
-            )}
-          </button>
-        );
-      })}
+          )}
+
+          {/* Verses flow together as continuous text, like a real page,
+              instead of stacking as separate cards. */}
+          <p dir="rtl" lang="ar" className="font-arabic text-2xl leading-[2.4] text-foreground text-right">
+            {pageVerses.map((v) => {
+              const isActive = v.verse_number === activeVerse;
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    onPickVerse(v.verse_number);
+                    if (trackingMode === "verses") onCountUp();
+                  }}
+                  className={cn(
+                    "rounded-lg transition-colors",
+                    isActive ? "bg-[color:var(--emerald-soft)]" : "hover:bg-muted/60",
+                  )}
+                >
+                  {v.text_uthmani}
+                  <span className="mx-1 text-sm align-middle text-[color:var(--emerald)] font-sans">
+                    ﴿{v.verse_number}﴾
+                  </span>
+                </button>
+              );
+            })}
+          </p>
+
+          {showTranslation && (
+            <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
+              {pageVerses
+                .filter((v) => v.translation)
+                .map((v) => (
+                  <p key={v.id} className="text-xs text-foreground/70 leading-relaxed">
+                    <span className="font-semibold text-foreground/90">{v.verse_key}</span>{" "}
+                    {v.translation}
+                  </p>
+                ))}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
